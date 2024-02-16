@@ -1,0 +1,6 @@
+github.com/docker/machine v0.16.2 h1:jyF9k3Zg+oIGxxSdYKPScyj3HqFZ6FjgA/3sblcASiU=
+github.com/docker/machine v0.16.2/go.mod h1:I8mPNDeK1uH+JTcUU7X0ZW8KiYz0jyAgNaeSJ1rCfDI=
+github.com/vmware/go-vcloud-director v2.0.0+incompatible h1:3B121XZVdEOxRhv5ARswKVxXt4KznAbun8GoXNbbZWs=
+github.com/vmware/go-vcloud-director v2.0.0+incompatible/go.mod h1:imYhjsPjkPsgrNsbA/wE2hoy0RK27MXzpOSPjHW89S8=
+github.com/vmware/go-vcloud-director/v2 v2.23.0-alpha.2 h1:e5OJHHsr7ZxrbPf+Lj0xkVGKjpPwVx3EuFIj8aNxuFM=
+github.com/vmware/go-vcloud-director/v2 v2.23.0-alpha.2/go.mod h1:7zG7TXViQ48JpYZIflmdPu3o30xkQSZ4nO+tZdSq31A=
