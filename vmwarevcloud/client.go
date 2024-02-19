@@ -119,9 +119,9 @@ func (c *VCloudClient) getVDCApp(d *Driver) (*govcd.VApp, error) {
 		return nil, errName
 	}
 
-	vapp, err := vdc.GetVAppByName(d.VAppID, true)
+	vapp, err := vdc.GetVAppByName(d.MachineName, true)
 	if err != nil {
-		log.Errorf("getVDC.GetVAppById error: %v", err)
+		log.Errorf("getVDC.GetVAppByName error: %v", err)
 		return nil, err
 	}
 
