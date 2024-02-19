@@ -24,7 +24,7 @@ const (
 	ubuntu18 = "ubuntu18"
 )
 
-type DriverVDCloud struct {
+type Driver struct {
 	*drivers.BaseDriver
 	// machine config
 	Rke2           bool
@@ -71,9 +71,8 @@ type RancherCloudInit struct {
 	} `yaml:"write_files"`
 }
 
-func NewDriverVDCloud(hostName, storePath string) drivers.Driver {
-	log.Info("initVCDClient Creating VM Driver")
-	return &DriverVDCloud{
+func NewDriver(hostName, storePath string) drivers.Driver {
+	return &Driver{
 		Catalog:                 defaultCatalog,
 		CatalogItem:             defaultCatalogItem,
 		NumCPUs:                 defaultCpus,
@@ -94,7 +93,7 @@ func NewDriverVDCloud(hostName, storePath string) drivers.Driver {
 
 // GetCreateFlags registers the flags this driver adds to
 // "docker hosts create"
-func (d *DriverVDCloud) GetCreateFlags() []mcnflag.Flag {
+func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 	return []mcnflag.Flag{
 		mcnflag.StringFlag{
 			EnvVar: "VCD_USERNAME",
@@ -231,8 +230,7 @@ func (d *DriverVDCloud) GetCreateFlags() []mcnflag.Flag {
 	}
 }
 
-func (d *DriverVDCloud) SetConfigFromFlags(flags drivers.DriverOptions) error {
-
+func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.UserName = flags.String("vcd-username")
 	d.UserPassword = flags.String("vcd-password")
 	d.VDC = flags.String("vcd-vdc")
@@ -283,7 +281,7 @@ func (d *DriverVDCloud) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	return nil
 }
 
-func (d *DriverVDCloud) GetURL() (string, error) {
+func (d *Driver) GetURL() (string, error) {
 	if err := drivers.MustBeRunning(d); err != nil {
 		return "", err
 	}
@@ -291,24 +289,24 @@ func (d *DriverVDCloud) GetURL() (string, error) {
 	return fmt.Sprintf("tcp://%s", net.JoinHostPort(d.PrivateIP, strconv.Itoa(d.DockerPort))), nil
 }
 
-func (d *DriverVDCloud) GetIP() (string, error) {
+func (d *Driver) GetIP() (string, error) {
 	return d.PrivateIP, nil
 }
 
-func (d *DriverVDCloud) GetSSHHostname() (string, error) {
+func (d *Driver) GetSSHHostname() (string, error) {
 	return d.GetIP()
 }
 
 // DriverName returns the name of the driver
-func (d *DriverVDCloud) DriverName() string {
+func (d *Driver) DriverName() string {
 	return "vcd"
 }
 
-func (d *DriverVDCloud) GetState() (state.State, error) {
+func (d *Driver) GetState() (state.State, error) {
+	log.Info("GetState() running")
+
 	// check vcd platform state
 	vdcClient := NewVCloudClient(d)
-
-	log.Info("Start.VCloudClient.getVDCApp")
 
 	vApp, errVdc := vdcClient.getVDCApp(d)
 	if errVdc != nil {
@@ -332,8 +330,8 @@ func (d *DriverVDCloud) GetState() (state.State, error) {
 	}
 }
 
-func (d *DriverVDCloud) Create() error {
-	log.Info("Create.VCloudClient.buildInstance")
+func (d *Driver) Create() error {
+	log.Info("Create() running")
 
 	vdcClient := NewVCloudClient(d)
 
@@ -538,8 +536,8 @@ func (d *DriverVDCloud) Create() error {
 	return nil
 }
 
-func (d *DriverVDCloud) Remove() error {
-	log.Info("Remove.VCloudClient.buildInstance")
+func (d *Driver) Remove() error {
+	log.Info("Remove() running")
 
 	vdcClient := NewVCloudClient(d)
 
@@ -652,7 +650,9 @@ func (d *DriverVDCloud) Remove() error {
 	return nil
 }
 
-func (d *DriverVDCloud) Start() error {
+func (d *Driver) Start() error {
+	log.Info("Start() running")
+
 	// check vcd platform state
 	vdcClient := NewVCloudClient(d)
 
@@ -695,7 +695,9 @@ func (d *DriverVDCloud) Start() error {
 	return nil
 }
 
-func (d *DriverVDCloud) Stop() error {
+func (d *Driver) Stop() error {
+	log.Info("Stop() running")
+
 	vdcClient := NewVCloudClient(d)
 
 	log.Info("Stop.VCloudClient.getVDCApp")
@@ -722,7 +724,9 @@ func (d *DriverVDCloud) Stop() error {
 	return nil
 }
 
-func (d *DriverVDCloud) Restart() error {
+func (d *Driver) Restart() error {
+	log.Info("Restart() running")
+
 	vdcClient := NewVCloudClient(d)
 
 	log.Info("Stop.VCloudClient.getVDCApp")
@@ -748,7 +752,9 @@ func (d *DriverVDCloud) Restart() error {
 	return err
 }
 
-func (d *DriverVDCloud) Kill() error {
+func (d *Driver) Kill() error {
+	log.Info("Kill() running")
+
 	vdcClient := NewVCloudClient(d)
 
 	log.Info("Stop.VCloudClient.getVDCApp")
@@ -775,7 +781,7 @@ func (d *DriverVDCloud) Kill() error {
 	return nil
 }
 
-func (d *DriverVDCloud) createSSHKey() (string, error) {
+func (d *Driver) createSSHKey() (string, error) {
 	if err := ssh.GenerateSSHKey(d.GetSSHKeyPath()); err != nil {
 		log.Errorf("createSSHKey.GenerateSSHKey error: %s", err)
 		return "", err
@@ -791,7 +797,6 @@ func (d *DriverVDCloud) createSSHKey() (string, error) {
 }
 
 func getRancherCloudInit(s string) string {
-
 	out := RancherCloudInit{}
 	err := yaml.Unmarshal([]byte(s), &out)
 	if err != nil {
@@ -805,7 +810,7 @@ func getRancherCloudInit(s string) string {
 	return ""
 }
 
-func (d *DriverVDCloud) postSettingsVM(vm *govcd.VM) error {
+func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	var numCPUsPtr *int
 	numCPUsPtr = &d.NumCPUs
 
@@ -837,7 +842,7 @@ func (d *DriverVDCloud) postSettingsVM(vm *govcd.VM) error {
 	return nil
 }
 
-func (d *DriverVDCloud) prepareCustomSectionForVM(vmScript types.GuestCustomizationSection) (types.GuestCustomizationSection, error) {
+func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSection) (types.GuestCustomizationSection, error) {
 	sshKey, errSsh := d.createSSHKey()
 	if errSsh != nil {
 		log.Errorf("prepareCustomSection.createSSHKey error: %s", errSsh)

@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	plugin.RegisterDriver(vmwarevcloud.NewDriverVDCloud("", ""))
+	plugin.RegisterDriver(vmwarevcloud.NewDriver("", ""))
 }

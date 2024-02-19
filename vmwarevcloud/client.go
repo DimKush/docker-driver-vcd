@@ -17,7 +17,7 @@ type VCloudClient struct {
 	catalogItem       *govcd.CatalogItem
 }
 
-func NewVCloudClient(d *DriverVDCloud) *VCloudClient {
+func NewVCloudClient(d *Driver) *VCloudClient {
 	// creates a new VCDClient with params
 	vcdClient := govcd.NewVCDClient(*d.URL, d.Insecure)
 
@@ -26,7 +26,7 @@ func NewVCloudClient(d *DriverVDCloud) *VCloudClient {
 	}
 }
 
-func (c *VCloudClient) buildInstance(d *DriverVDCloud) error {
+func (c *VCloudClient) buildInstance(d *Driver) error {
 	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", d.URL.Path, d.UserName)
 	// Authenticate to vCloud Director
 	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Organization)
@@ -95,7 +95,7 @@ func (c *VCloudClient) buildInstance(d *DriverVDCloud) error {
 	return nil
 }
 
-func (c *VCloudClient) getVDCApp(d *DriverVDCloud) (*govcd.VApp, error) {
+func (c *VCloudClient) getVDCApp(d *Driver) (*govcd.VApp, error) {
 	log.Infof("getVcdStatus Connecting vCloud with url %s and name: %s", d.URL.Path, d.UserName)
 
 	// Authenticate to vCloud Director
