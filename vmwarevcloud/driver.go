@@ -364,10 +364,32 @@ func (d *Driver) Create() error {
 		return err
 	}
 
-	task, err := vApp.AddNewVM(d.MachineName, vdcClient.vAppTemplate, nil, true)
+	taskNet, errTaskNet := vApp.AddRAWNetworkConfig(networks)
+	if errTaskNet != nil {
+		log.Errorf("Create.AddRAWNetworkConfig error: %v", errTaskNet)
+		return errTaskNet
+	}
+
+	if err := taskNet.WaitTaskCompletion(); err != nil {
+		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", err)
+		return err
+	}
+
+	cfgSection, err := vApp.GetNetworkConnectionSection()
+	if err != nil {
+		log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
+		return err
+	}
+
+	task, err := vApp.AddNewVM(d.MachineName, vdcClient.vAppTemplate, cfgSection, true)
 	if err != nil {
 		log.Errorf("Create.AddNewVM error: %v", err)
 		return err
+	}
+	// Wait for the creation to be completed
+	if errTask := task.WaitTaskCompletion(); errTask != nil {
+		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", errTask)
+		return errTask
 	}
 
 	//// Up vApp with template
@@ -383,12 +405,6 @@ func (d *Driver) Create() error {
 	//	log.Errorf("Create.ComposeVApp error: %v", errCompose)
 	//	return errCompose
 	//}
-
-	// Wait for the creation to be completed
-	if errTask := task.WaitTaskCompletion(); errTask != nil {
-		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", errTask)
-		return errTask
-	}
 
 	vApp, errApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
 	if errApp != nil {

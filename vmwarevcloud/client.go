@@ -56,6 +56,8 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 		return errVdc
 	}
 
+	vdc.GetNet
+
 	log.Infof("buildInstance Finding Catalog: %s", d.Catalog)
 
 	catalog, errCat := org.GetCatalogByName(d.Catalog, true)
@@ -108,7 +110,7 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 		)
 
 	}
-	
+
 	c.vAppTemplate = vAppTemplate
 	c.storageProfileRef = storageProfileRef
 	c.virtualDataCenter = vdc
