@@ -354,46 +354,35 @@ func (d *Driver) Create() error {
 	log.Info("Create.VCloudClient Set up VApp before running")
 
 	networks := make([]*types.OrgVDCNetwork, 0)
-
-	if d.AdapterType != "" {
-		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
-
-		log.Infof("Create current network connection is : %+v",
-			vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
-		)
-
-		vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0] =
-			&types.NetworkConnection{
-				Network:                 d.OrgVDCNet,
-				NetworkAdapterType:      d.AdapterType,
-				IPAddressAllocationMode: d.IPAddressAllocationMode,
-				NetworkConnectionIndex:  0,
-				IsConnected:             true,
-				NeedsCustomization:      true,
-			}
-
-		log.Infof("Create current network connection is : %+v",
-			vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
-		)
-	}
-
 	networks = append(networks, vdcClient.network.OrgVDCNetwork)
 
 	log.Info("Create.VCloudClient Creates new vApp and virtual machine")
 
-	// Up vApp with template
-	task, errCompose := vdcClient.virtualDataCenter.ComposeVApp(
-		networks,
-		vdcClient.vAppTemplate,
-		vdcClient.storageProfileRef,
-		d.MachineName,
-		"Container Host created with Docker Host",
-		true,
-	)
-	if errCompose != nil {
-		log.Errorf("Create.ComposeVApp error: %v", errCompose)
-		return errCompose
+	vApp, err := vdcClient.virtualDataCenter.CreateRawVApp(d.MachineName, "Container Host created with Docker Host")
+	if err != nil {
+		log.Errorf("Create.CreateRawVApp error: %v", err)
+		return err
 	}
+
+	task, err := vApp.AddNewVM(d.MachineName, vdcClient.vAppTemplate, nil, true)
+	if err != nil {
+		log.Errorf("Create.AddNewVM error: %v", err)
+		return err
+	}
+
+	//// Up vApp with template
+	//task, errCompose := vdcClient.virtualDataCenter.ComposeVApp(
+	//	networks,
+	//	vdcClient.vAppTemplate,
+	//	vdcClient.storageProfileRef,
+	//	d.MachineName,
+	//	"Container Host created with Docker Host",
+	//	true,
+	//)
+	//if errCompose != nil {
+	//	log.Errorf("Create.ComposeVApp error: %v", errCompose)
+	//	return errCompose
+	//}
 
 	// Wait for the creation to be completed
 	if errTask := task.WaitTaskCompletion(); errTask != nil {
@@ -450,7 +439,7 @@ func (d *Driver) Create() error {
 	}
 
 	log.Info("Create vm was created and powered off. Set post-settings before run VM")
-	err := d.postSettingsVM(virtualMachine)
+	err = d.postSettingsVM(virtualMachine)
 	if err != nil {
 		log.Errorf("Create.postSettingsVM error: %v", err)
 		errDel = fmt.Errorf("postSettingsVM error %w", err)
