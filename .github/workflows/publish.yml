@@ -25,7 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: go build
+      run: go build cmd
     - name: Create tar.gz
       if: matrix.os == 'ubuntu-latest'
       run: tar -czvf docker-machine-driver-vcd-linux-amd64.tgz docker-machine-driver-vcd
