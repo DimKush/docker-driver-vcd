@@ -663,7 +663,7 @@ func (d *Driver) Remove() error {
 	}
 
 	log.Infof("Remove.Undeploying %s...", d.MachineName)
-	task, err := vApp.Undeploy()
+	task, err := vApp.Delete()
 	if err != nil {
 		return err
 	}
