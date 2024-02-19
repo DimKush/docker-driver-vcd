@@ -50,7 +50,7 @@ func (c *VCloudClient) buildInstance(d *DriverVDCloud) error {
 
 	log.Infof("Find VDC Network by name: %s", d.VDC)
 
-	network, errVdc := vdc.GetOrgVdcNetworkByName(d.VDC, true)
+	_, errVdc := vdc.GetOrgVdcNetworkByName(d.VDC, true)
 	if errVdc != nil {
 		log.Errorf("buildInstance.GetOrgVdcNetworkByName error: %v", errVdc)
 		return errVdc
