@@ -333,6 +333,16 @@ func (d *Driver) GetState() (state.State, error) {
 func (d *Driver) Create() error {
 	log.Info("Create() running")
 
+	var errDel error
+
+	defer func() {
+		if errDel != nil {
+			if err := d.deleteMachineError(errDel); err != nil {
+				log.Errorf("Create.deleteMachineError error: %v", err)
+			}
+		}
+	}()
+
 	vdcClient := NewVCloudClient(d)
 
 	errBuild := vdcClient.buildInstance(d)
@@ -401,12 +411,22 @@ func (d *Driver) Create() error {
 
 	// Wait while vm is creating
 	for {
+		virtualMachine, errMachine = vApp.GetVMByName(d.MachineName, true)
+		if errMachine != nil {
+			log.Errorf("Create.GetVMByName error: %v", errMachine)
+			errDel = fmt.Errorf("GetVMByName error %w", errMachine)
+
+			return errMachine
+		}
+
 		if virtualMachine.VM.VmSpecSection != nil {
 			// when the VM will get its specs, check status of the VM
 			status, errStatus := virtualMachine.GetStatus()
 			if errStatus != nil {
 				log.Errorf("Create.GetStatus error: %v", errStatus)
-				return fmt.Errorf("GetStatus error %w", errStatus)
+				errDel = fmt.Errorf("GetStatus error %w", errStatus)
+
+				return errStatus
 			}
 
 			log.Infof("Create.waiting for vm created and powered off. Current status: %s", status)
@@ -423,6 +443,8 @@ func (d *Driver) Create() error {
 	err := d.postSettingsVM(virtualMachine)
 	if err != nil {
 		log.Errorf("Create.postSettingsVM error: %v", err)
+		errDel = fmt.Errorf("postSettingsVM error %w", err)
+
 		return err
 	}
 
@@ -430,11 +452,15 @@ func (d *Driver) Create() error {
 		if d.VdcEdgeGateway != "" {
 			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
 			if err != nil {
+				errDel = fmt.Errorf("GetVDCByName error %w", err)
+
 				return err
 			}
 
 			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
 			if err != nil {
+				errDel = fmt.Errorf("GetEdgeGatewayByName error %w", err)
+
 				return err
 			}
 
@@ -447,11 +473,15 @@ func (d *Driver) Create() error {
 			)
 			if errMap != nil {
 				log.Errorf("Create.Create1to1Mapping error: %v", errMap)
+				errDel = fmt.Errorf("Create1to1Mapping error %w", errMap)
+
 				return err
 			}
 
 			if errTask := task.WaitTaskCompletion(); errTask != nil {
-				log.Errorf("Create.Create1to1Mapping.WaitTaskCompletion error: %v", errMap)
+				log.Errorf("Create.WaitTaskCompletion.WaitTaskCompletion error: %v", errMap)
+				errDel = fmt.Errorf("WaitTaskCompletion error %w", errMap)
+
 				return errTask
 			}
 		} else {
@@ -478,24 +508,32 @@ func (d *Driver) Create() error {
 			adminOrg, errAdmin := vdcClient.client.GetAdminOrgByName(d.Organization)
 			if errAdmin != nil {
 				log.Errorf("Create.GetAdminOrgByName error: %v", errAdmin)
+				errDel = fmt.Errorf("GetAdminOrgByName error %w", errAdmin)
+
 				return errAdmin
 			}
 
 			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
 			if edge != nil {
-				log.Errorf("Create.GetAdminOrgByName error: %v", err)
+				log.Errorf("Create.GetNsxtEdgeGatewayByName error: %v", err)
+				errDel = fmt.Errorf("GetNsxtEdgeGatewayByName error %w", err)
+
 				return err
 			}
 
 			_, err = edge.CreateNatRule(snatRuleDefinition)
 			if err != nil {
 				log.Errorf("Create.CreateNatRule error: %v", err)
+				errDel = fmt.Errorf("CreateNatRule error %w", err)
+
 				return err
 			}
 
 			_, err = edge.CreateNatRule(dnatRuleDefinition)
 			if err != nil {
 				log.Errorf("Create.CreateNatRule error: %v", err)
+				errDel = fmt.Errorf("CreateNatRule error %w", err)
+
 				return err
 			}
 		}
@@ -506,6 +544,8 @@ func (d *Driver) Create() error {
 	task, errPowerOn := vApp.PowerOn()
 	if errPowerOn != nil {
 		log.Errorf("Create.PowerOn error: %v", errPowerOn)
+		errDel = fmt.Errorf("CreateNatRule error %w", errPowerOn)
+
 		return errPowerOn
 	}
 
@@ -909,4 +949,15 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 	section.CustomizationScript = scriptSh
 
 	return section, nil
+}
+
+func (d *Driver) deleteMachineError(err error) error {
+	log.Infof("deleteMachine reason ----> %w", err)
+
+	if errRemove := d.Remove(); err != nil {
+		log.Errorf("deleteMachine %v", errRemove)
+		return errRemove
+	}
+
+	return err
 }

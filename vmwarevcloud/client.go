@@ -27,7 +27,7 @@ func NewVCloudClient(d *Driver) *VCloudClient {
 }
 
 func (c *VCloudClient) buildInstance(d *Driver) error {
-	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", d.URL.Path, d.UserName)
+	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", d.URL, d.UserName)
 	// Authenticate to vCloud Director
 	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Organization)
 	if errAuth != nil {
@@ -48,9 +48,9 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 		return errName
 	}
 
-	log.Infof("Find VDC Network by name: %s", d.VDC)
+	log.Infof("Find VDC Network by name: %s", d.OrgVDCNet)
 
-	_, errVdc := vdc.GetOrgVdcNetworkByName(d.VDC, true)
+	network, errVdc := vdc.GetOrgVdcNetworkByName(d.OrgVDCNet, true)
 	if errVdc != nil {
 		log.Errorf("buildInstance.GetOrgVdcNetworkByName error: %v", errVdc)
 		return errVdc
@@ -91,6 +91,7 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 	c.storageProfileRef = storageProfileRef
 	c.virtualDataCenter = vdc
 	c.catalogItem = catalogItem
+	c.network = network
 
 	return nil
 }
