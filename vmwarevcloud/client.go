@@ -87,21 +87,6 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 
 	vAppTemplate.VAppTemplate.Children.VM[0].Name = d.MachineName
 
-	if d.AdapterType != "" {
-		vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection = &types.NetworkConnectionSection{
-			NetworkConnection: []*types.NetworkConnection{
-				{
-					Network:                 d.OrgVDCNet,
-					NetworkAdapterType:      d.AdapterType,
-					IPAddressAllocationMode: d.IPAddressAllocationMode,
-					NetworkConnectionIndex:  0,
-					IsConnected:             true,
-					NeedsCustomization:      false,
-				},
-			},
-		}
-	}
-
 	c.vAppTemplate = vAppTemplate
 	c.storageProfileRef = storageProfileRef
 	c.virtualDataCenter = vdc
@@ -134,7 +119,7 @@ func (c *VCloudClient) getVDCApp(d *Driver) (*govcd.VApp, error) {
 		return nil, errName
 	}
 
-	vapp, err := vdc.GetVAppById(d.VAppID, true)
+	vapp, err := vdc.GetVAppByName(d.VAppID, true)
 	if err != nil {
 		log.Errorf("getVDC.GetVAppById error: %v", err)
 		return nil, err

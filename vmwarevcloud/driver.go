@@ -858,31 +858,34 @@ func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySizeMB)
 	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSizeMB)
 
-	//if d.AdapterType != "" {
-	//	log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
-	//
-	//	netCfg, err := vm.GetNetworkConnectionSection()
-	//	if err != nil {
-	//		log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
-	//		return err
-	//	}
-	//
-	//	netCfg.NetworkConnection = []*types.NetworkConnection{
-	//		{
-	//			Network:                 d.OrgVDCNet,
-	//			NetworkAdapterType:      d.AdapterType,
-	//			IPAddressAllocationMode: d.IPAddressAllocationMode,
-	//			NetworkConnectionIndex:  0,
-	//			IsConnected:             true,
-	//			NeedsCustomization:      false,
-	//		},
-	//	}
-	//
-	//	if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
-	//		log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
-	//		return errUpd
-	//	}
-	//}
+	if d.AdapterType != "" {
+		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
+
+		netCfg, err := vm.GetNetworkConnectionSection()
+		if err != nil {
+			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
+			return err
+		}
+
+		netCfg.NetworkConnection = nil
+
+		ntc := make([]*types.NetworkConnection, 0)
+		ntc = append(ntc, &types.NetworkConnection{
+			Network:                 d.OrgVDCNet,
+			NetworkAdapterType:      d.AdapterType,
+			IPAddressAllocationMode: d.IPAddressAllocationMode,
+			NetworkConnectionIndex:  0,
+			IsConnected:             true,
+			NeedsCustomization:      false,
+		})
+
+		netCfg.NetworkConnection = ntc
+
+		if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
+			log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
+			return errUpd
+		}
+	}
 
 	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
 	if errUpd != nil {
@@ -975,7 +978,7 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 }
 
 func (d *Driver) deleteMachineError(err error) error {
-	log.Infof("deleteMachine reason ----> %w", err)
+	log.Infof("deleteMachine reason ----> %v", err)
 
 	if errRemove := d.Remove(); err != nil {
 		log.Errorf("deleteMachine %v", errRemove)
