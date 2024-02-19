@@ -354,21 +354,21 @@ func (d *Driver) Create() error {
 	log.Info("Create.VCloudClient Set up VApp before running")
 
 	// change VApp template
-	if d.AdapterType != "" {
-		log.Infof("Create.Change VApp template to adapter type %s", d.AdapterType)
-
-		vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection = append(
-			vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection,
-			&types.NetworkConnection{
-				Network:                 d.OrgVDCNet,
-				NetworkAdapterType:      d.AdapterType,
-				IPAddressAllocationMode: d.IPAddressAllocationMode,
-				NetworkConnectionIndex:  0,
-				IsConnected:             true,
-				NeedsCustomization:      false,
-			},
-		)
-	}
+	//if d.AdapterType != "" {
+	//	vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection = &types.NetworkConnectionSection{}
+	//
+	//	vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection = append(
+	//		vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection,
+	//		&types.NetworkConnection{
+	//			Network:                 d.OrgVDCNet,
+	//			NetworkAdapterType:      d.AdapterType,
+	//			IPAddressAllocationMode: d.IPAddressAllocationMode,
+	//			NetworkConnectionIndex:  0,
+	//			IsConnected:             true,
+	//			NeedsCustomization:      false,
+	//		},
+	//	)
+	//}
 
 	networks := make([]*types.OrgVDCNetwork, 0)
 	networks = append(networks, vdcClient.network.OrgVDCNetwork)
@@ -399,6 +399,26 @@ func (d *Driver) Create() error {
 	if errApp != nil {
 		log.Errorf("Create.GetVAppByName error: with machine %d error: %v", d.MachineName, errApp)
 		return errApp
+	}
+
+	if d.AdapterType != "" {
+		log.Infof("Create.Change VApp template to adapter type %s", d.AdapterType)
+		netCfg, err := vApp.GetNetworkConnectionSection()
+		if err != nil {
+			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
+			return err
+		}
+
+		netCfg.NetworkConnection = []*types.NetworkConnection{
+			{
+				Network:                 d.OrgVDCNet,
+				NetworkAdapterType:      d.AdapterType,
+				IPAddressAllocationMode: d.IPAddressAllocationMode,
+				NetworkConnectionIndex:  0,
+				IsConnected:             true,
+				NeedsCustomization:      false,
+			},
+		}
 	}
 
 	virtualMachine, errMachine := vApp.GetVMByName(d.MachineName, true)
@@ -436,6 +456,7 @@ func (d *Driver) Create() error {
 			log.Infof("Create.waiting for vm created and powered off. Current status: %s", status)
 
 			if status == "POWERED_OFF" {
+				virtualMachine = vm
 				break
 			}
 		}
