@@ -354,6 +354,29 @@ func (d *Driver) Create() error {
 	log.Info("Create.VCloudClient Set up VApp before running")
 
 	networks := make([]*types.OrgVDCNetwork, 0)
+
+	if d.AdapterType != "" {
+		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
+
+		log.Infof("Create current network connection is : %+v",
+			vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
+		)
+
+		vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0] =
+			&types.NetworkConnection{
+				Network:                 d.OrgVDCNet,
+				NetworkAdapterType:      d.AdapterType,
+				IPAddressAllocationMode: d.IPAddressAllocationMode,
+				NetworkConnectionIndex:  0,
+				IsConnected:             true,
+				NeedsCustomization:      true,
+			}
+
+		log.Infof("Create current network connection is : %+v",
+			vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
+		)
+	}
+
 	networks = append(networks, vdcClient.network.OrgVDCNetwork)
 
 	log.Info("Create.VCloudClient Creates new vApp and virtual machine")
@@ -674,16 +697,6 @@ func (d *Driver) Remove() error {
 
 	log.Infof("Remove.Deleting %s...", d.MachineName)
 
-	task, err = vApp.Delete()
-	if err != nil {
-		log.Errorf("Remove.Delete error: %v", err)
-		return err
-	}
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.Delete.WaitTaskCompletion error: %v", err)
-		return err
-	}
-
 	return nil
 }
 
@@ -857,35 +870,6 @@ func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	vmSpecs.NumCoresPerSocket = numCPUsPtr
 	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySizeMB)
 	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSizeMB)
-
-	if d.AdapterType != "" {
-		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
-
-		netCfg, err := vm.GetNetworkConnectionSection()
-		if err != nil {
-			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
-			return err
-		}
-
-		netCfg.NetworkConnection = nil
-
-		ntc := make([]*types.NetworkConnection, 0)
-		ntc = append(ntc, &types.NetworkConnection{
-			Network:                 d.OrgVDCNet,
-			NetworkAdapterType:      d.AdapterType,
-			IPAddressAllocationMode: d.IPAddressAllocationMode,
-			NetworkConnectionIndex:  0,
-			IsConnected:             true,
-			NeedsCustomization:      false,
-		})
-
-		netCfg.NetworkConnection = ntc
-
-		if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
-			log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
-			return errUpd
-		}
-	}
 
 	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
 	if errUpd != nil {
