@@ -411,17 +411,21 @@ func (d *Driver) Create() error {
 
 	// Wait while vm is creating
 	for {
-		virtualMachine, errMachine = vApp.GetVMByName(d.MachineName, true)
-		if errMachine != nil {
-			log.Errorf("Create.GetVMByName error: %v", errMachine)
-			errDel = fmt.Errorf("GetVMByName error %w", errMachine)
-
-			return errMachine
+		vApp, errVApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
+		if errVApp != nil {
+			log.Errorf("Create.GetVAppByName error: with machine %d error: %v", d.MachineName, errVApp)
+			return errVApp
 		}
 
-		if virtualMachine.VM.VmSpecSection != nil {
+		vm, err := vApp.GetVMByName(d.MachineName, true)
+		if err != nil {
+			log.Errorf("Create.GetVMByName error: %v", err)
+			return err
+		}
+
+		if vm.VM.VmSpecSection != nil {
 			// when the VM will get its specs, check status of the VM
-			status, errStatus := virtualMachine.GetStatus()
+			status, errStatus := vApp.GetStatus()
 			if errStatus != nil {
 				log.Errorf("Create.GetStatus error: %v", errStatus)
 				errDel = fmt.Errorf("GetStatus error %w", errStatus)
@@ -642,27 +646,37 @@ func (d *Driver) Remove() error {
 		}
 	}
 
-	status, err := vApp.GetStatus()
-	if err != nil {
-		log.Errorf("Remove.GetStatus error: %v", err)
-		return err
-	}
-
-	if status == "POWERED_ON" {
-		// If it's powered on, power it off before deleting
-		log.Infof("Powering Off %s...", d.MachineName)
-		task, err := vApp.PowerOff()
-
+	for {
+		status, err := vApp.GetStatus()
 		if err != nil {
-			log.Errorf("Remove.PowerOff error: %v", err)
+			log.Errorf("Remove.GetStatus error: %v", err)
 			return err
 		}
 
-		if err = task.WaitTaskCompletion(); err != nil {
-			log.Errorf("Remove.PowerOff.WaitTaskCompletion error: %v", err)
-			return err
+		if status == "UNRESOLVED" {
+			log.Infof("Remove.Unresolved waiting for %s...", d.MachineName)
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
+		if status != "POWERED_OFF" {
+			log.Infof("Remove machine :%s status is %s. Power it off", d.MachineName, status)
+			task, err := vApp.PowerOff()
+
+			if err != nil {
+				log.Errorf("Remove.PowerOff error: %v", err)
+				return err
+			}
+
+			if err = task.WaitTaskCompletion(); err != nil {
+				log.Errorf("Remove.PowerOff.WaitTaskCompletion error: %v", err)
+				return err
+			}
+			break
+		} else {
+			log.Infof("Remove.Powered Off %s...", d.MachineName)
+			break
+		}
 	}
 
 	log.Infof("Remove.Undeploying %s...", d.MachineName)
