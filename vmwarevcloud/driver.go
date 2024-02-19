@@ -353,23 +353,6 @@ func (d *Driver) Create() error {
 
 	log.Info("Create.VCloudClient Set up VApp before running")
 
-	// change VApp template
-	//if d.AdapterType != "" {
-	//	vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection = &types.NetworkConnectionSection{}
-	//
-	//	vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection = append(
-	//		vdcClient.vAppTemplate.VAppTemplate.NetworkConnectionSection.NetworkConnection,
-	//		&types.NetworkConnection{
-	//			Network:                 d.OrgVDCNet,
-	//			NetworkAdapterType:      d.AdapterType,
-	//			IPAddressAllocationMode: d.IPAddressAllocationMode,
-	//			NetworkConnectionIndex:  0,
-	//			IsConnected:             true,
-	//			NeedsCustomization:      false,
-	//		},
-	//	)
-	//}
-
 	networks := make([]*types.OrgVDCNetwork, 0)
 	networks = append(networks, vdcClient.network.OrgVDCNetwork)
 
@@ -401,26 +384,6 @@ func (d *Driver) Create() error {
 		return errApp
 	}
 
-	if d.AdapterType != "" {
-		log.Infof("Create.Change VApp template to adapter type %s", d.AdapterType)
-		netCfg, err := vApp.GetNetworkConnectionSection()
-		if err != nil {
-			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
-			return err
-		}
-
-		netCfg.NetworkConnection = []*types.NetworkConnection{
-			{
-				Network:                 d.OrgVDCNet,
-				NetworkAdapterType:      d.AdapterType,
-				IPAddressAllocationMode: d.IPAddressAllocationMode,
-				NetworkConnectionIndex:  0,
-				IsConnected:             true,
-				NeedsCustomization:      false,
-			},
-		}
-	}
-
 	virtualMachine, errMachine := vApp.GetVMByName(d.MachineName, true)
 	if errMachine != nil {
 		log.Errorf("Create.GetVMByName error: %v", errMachine)
@@ -428,7 +391,6 @@ func (d *Driver) Create() error {
 	}
 
 	log.Info("Create.wait waiting for vm")
-
 	// Wait while vm is creating
 	for {
 		vApp, errVApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
@@ -895,6 +857,32 @@ func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	vmSpecs.NumCoresPerSocket = numCPUsPtr
 	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySizeMB)
 	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSizeMB)
+
+	if d.AdapterType != "" {
+		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
+
+		netCfg, err := vm.GetNetworkConnectionSection()
+		if err != nil {
+			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
+			return err
+		}
+
+		netCfg.NetworkConnection = []*types.NetworkConnection{
+			{
+				Network:                 d.OrgVDCNet,
+				NetworkAdapterType:      d.AdapterType,
+				IPAddressAllocationMode: d.IPAddressAllocationMode,
+				NetworkConnectionIndex:  0,
+				IsConnected:             true,
+				NeedsCustomization:      false,
+			},
+		}
+
+		if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
+			log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
+			return errUpd
+		}
+	}
 
 	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
 	if errUpd != nil {
