@@ -858,31 +858,31 @@ func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySizeMB)
 	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSizeMB)
 
-	if d.AdapterType != "" {
-		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
-
-		netCfg, err := vm.GetNetworkConnectionSection()
-		if err != nil {
-			log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
-			return err
-		}
-
-		netCfg.NetworkConnection = []*types.NetworkConnection{
-			{
-				Network:                 d.OrgVDCNet,
-				NetworkAdapterType:      d.AdapterType,
-				IPAddressAllocationMode: d.IPAddressAllocationMode,
-				NetworkConnectionIndex:  0,
-				IsConnected:             true,
-				NeedsCustomization:      false,
-			},
-		}
-
-		if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
-			log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
-			return errUpd
-		}
-	}
+	//if d.AdapterType != "" {
+	//	log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
+	//
+	//	netCfg, err := vm.GetNetworkConnectionSection()
+	//	if err != nil {
+	//		log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
+	//		return err
+	//	}
+	//
+	//	netCfg.NetworkConnection = []*types.NetworkConnection{
+	//		{
+	//			Network:                 d.OrgVDCNet,
+	//			NetworkAdapterType:      d.AdapterType,
+	//			IPAddressAllocationMode: d.IPAddressAllocationMode,
+	//			NetworkConnectionIndex:  0,
+	//			IsConnected:             true,
+	//			NeedsCustomization:      false,
+	//		},
+	//	}
+	//
+	//	if errUpd := vm.UpdateNetworkConnectionSection(netCfg); errUpd != nil {
+	//		log.Errorf("Create.UpdateNetworkConnectionSection error: %v", errUpd)
+	//		return errUpd
+	//	}
+	//}
 
 	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
 	if errUpd != nil {

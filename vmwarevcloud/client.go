@@ -87,6 +87,21 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 
 	vAppTemplate.VAppTemplate.Children.VM[0].Name = d.MachineName
 
+	if d.AdapterType != "" {
+		vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection = &types.NetworkConnectionSection{
+			NetworkConnection: []*types.NetworkConnection{
+				{
+					Network:                 d.OrgVDCNet,
+					NetworkAdapterType:      d.AdapterType,
+					IPAddressAllocationMode: d.IPAddressAllocationMode,
+					NetworkConnectionIndex:  0,
+					IsConnected:             true,
+					NeedsCustomization:      false,
+				},
+			},
+		}
+	}
+
 	c.vAppTemplate = vAppTemplate
 	c.storageProfileRef = storageProfileRef
 	c.virtualDataCenter = vdc
