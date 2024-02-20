@@ -89,10 +89,6 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 	if d.AdapterType != "" {
 		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
 
-		log.Infof("Create current network connection is : %+v",
-			vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
-		)
-
 		vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0] =
 			&types.NetworkConnection{
 				Network:                 d.OrgVDCNet,
@@ -103,9 +99,6 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 				NeedsCustomization:      true,
 			}
 
-		log.Infof("Create current network connection is : %+v",
-			vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0],
-		)
 
 	}
 

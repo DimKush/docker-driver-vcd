@@ -364,6 +364,17 @@ func (d *Driver) Create() error {
 		return err
 	}
 
+	taskNet, errTaskNet := vApp.AddRAWNetworkConfig(networks)
+	if errTaskNet != nil {
+		log.Errorf("Create.AddRAWNetworkConfig error: %v", errTaskNet)
+		return errTaskNet
+	}
+
+	if err := taskNet.WaitTaskCompletion(); err != nil {
+		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", err)
+		return err
+	}
+
 	task, err := vApp.AddNewVM(
 		d.MachineName,
 		vdcClient.vAppTemplate,
@@ -891,24 +902,8 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 
 	scriptSh = d.InitData + "\n"
 	// append ssh user to script
-	scriptSh += "\nuseradd -m -d /home/" + d.SSHUser + " -s /bin/bash " + d.SSHUser + "\nmkdir -p /home/" + d.SSHUser + "/.ssh\nchown -R " + d.SSHUser + ":" + d.SSHUser + " /home/" + d.SSHUser + "/.ssh\nchmod 700 /home/" + d.SSHUser + "/.ssh\nchmod 600 /home/" + d.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + d.SSHUser + "\necho \"" + strings.TrimSpace(sshKey) + "\" > /home/" + d.SSHUser + "/.ssh/authorized_keys\necho \"" + d.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nswapoff -a\n"
-
-	// resize rootFS for ubuntu*
-	if strings.HasPrefix(d.CatalogItem, ubuntu20) {
-		scriptSh += "\nrm -rf /swap.img\n"
-		scriptSh += "\ngrowpart /dev/sda 3\npvresize /dev/sda3\nlvextend -l 100%VG /dev/mapper/ubuntu--vg-ubuntu--lv\nresize2fs /dev/mapper/ubuntu--vg-ubuntu--lv\n"
-		scriptSh += "\nuserdel -r ubuntu || echo true\n"
-	}
-	if strings.HasPrefix(d.CatalogItem, ubuntu18) {
-		scriptSh += "\nrm -rf /swapfile\n"
-		scriptSh += "\napt update\n"
-		scriptSh += "\nDEBIAN_FRONTEND=noninteractive apt -y install cloud-guest-utils curl open-iscsi\ngrowpart /dev/sda 2\nresize2fs /dev/sda2\n"
-		scriptSh += "\nuserdel -r ubuntu || echo true\n"
-	}
-
-	scriptSh += "\nsed -i 's/.*PermitRootLogin.*/PermitRootLogin no/g' /etc/ssh/sshd_config\n"
-	scriptSh += "\nsed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config\n"
-	scriptSh += "\nservice sshd restart\n"
+	scriptSh += "\nuseradd -m -d /home/" + d.SSHUser + " -s /bin/bash " + d.SSHUser + "\nmkdir -p /home/" + d.SSHUser + "/.ssh\nchown -R " + d.SSHUser + ":" + d.SSHUser + " /home/" + d.SSHUser + "/.ssh\nchmod 700 /home/" + d.SSHUser + "/.ssh\ntouch /home/" + d.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + d.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + d.SSHUser + "\necho \"" + strings.TrimSpace(sshKey) + "\" > /home/" + d.SSHUser + "/.ssh/authorized_keys\necho \"" + d.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\n"
+	
 
 	if d.Rke2 {
 		// if rke2
@@ -930,7 +925,7 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 		scriptSh += "exit 0\n"
 	} else {
 		// if rke1
-		scriptSh += d.InitData
+		scriptSh += d.UserData
 	}
 
 	log.Infof("prepareCustomSection generate script ----> %s", scriptSh)
