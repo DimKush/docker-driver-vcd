@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/docker/machine/libmachine/drivers"
-	"github.com/docker/machine/libmachine/log"
+	log "github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
 	"github.com/docker/machine/libmachine/ssh"
 	"github.com/docker/machine/libmachine/state"
@@ -19,46 +19,33 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	ubuntu20 = "ubuntu20"
-	ubuntu18 = "ubuntu18"
-)
-
 type Driver struct {
 	*drivers.BaseDriver
-	// machine config
-	Rke2           bool
-	MachineAppID   string
-	MachineName    string
-	DockerPort     int
-	PrivateIP      string
-	PublicIP       string
-	EdgeGateway    string
-	VdcEdgeGateway string
-	CPUCount       int
-	MemorySize     int
-	DiskSize       int
-
-	// SSH config
-	InitData string
-	UserData string
-	SSHPort  int
-
-	// VCD config
-	AdapterType             string
-	IPAddressAllocationMode string
-	Href                    string
 	UserName                string
 	UserPassword            string
-	Org                     string
 	VDC                     string
 	OrgVDCNet               string
+	EdgeGateway             string
+	VdcEdgeGateway          string
+	PublicIP                string
+	PrivateIP               string
 	Catalog                 string
 	CatalogItem             string
 	StorProfile             string
+	UserData                string
+	InitData                string
+	AdapterType             string
+	IPAddressAllocationMode string
+	DockerPort              int
+	CPUCount                int
+	MemorySize              int
+	DiskSize                int
 	VAppID                  string
+	Href                    string
 	Url                     *url.URL
+	Org                     string
 	Insecure                bool
+	Rke2                    bool
 }
 
 type RancherCloudInit struct {
@@ -249,7 +236,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	// Check for required Params
 	if d.UserName == "" || d.UserPassword == "" || d.Href == "" || d.VDC == "" || d.Org == "" || d.StorProfile == "" {
-		return fmt.Errorf("Please specify vclouddirector mandatory params using options: -vcd-username -vcd-password -vcd-vdc -vcd-href -vcd-org and -vcd-storprofile")
+		return fmt.Errorf("please specify vclouddirector mandatory params using options: -vcd-username -vcd-password -vcd-vdc -vcd-href -vcd-org and -vcd-storprofile")
 	}
 
 	u, err := url.ParseRequestURI(d.Href)
@@ -587,24 +574,31 @@ func (d *Driver) Create() error {
 
 	// check status of VM after task powered on
 	for {
-		if virtualMachine.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress != "" {
-			d.PrivateIP = virtualMachine.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress
-			break
+		vm, errVM := vApp.GetVMByName(d.MachineName, true)
+		if errVM != nil {
+			log.Errorf("Create.GetVMByName error: %v", errVM)
+			errDel = fmt.Errorf("Create.GetVMByName %w", errVM)
+
+			return errVM
 		}
 
 		time.Sleep(2 * time.Second)
+
+		if vm.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress != "" {
+			d.PrivateIP = vm.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress
+			break
+		}
 	}
 
 	d.VAppID = vApp.VApp.ID
-	ipAddress, errIP := d.GetIP()
-	if errIP != nil {
-		log.Errorf("Create.GetIP error: %v", errIP)
-		errDel = fmt.Errorf("Create.GetIP error %w", errPowerOn)
 
-		return errIP
+	d.IPAddress, err = d.GetIP()
+	if err != nil {
+		log.Errorf("Create.GetIP error: %v", err)
+		errDel = fmt.Errorf("Create.GetIP error %w", err)
+
+		return err
 	}
-
-	d.IPAddress = ipAddress
 
 	return nil
 }
