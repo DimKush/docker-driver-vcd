@@ -1,0 +1,38 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  publish:
+    name: Publish for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: docker-machine-driver-vcd-linux-amd64.tgz
+            asset_name: docker-machine-driver-vcd-linux-amd64.tgz
+          - os: windows-latest
+            artifact_name: docker-machine-driver-vcd.exe
+            asset_name: docker-machine-driver-vcd-windows-amd64
+          - os: macos-latest
+            artifact_name: docker-machine-driver-vcd
+            asset_name: docker-machine-driver-vcd-macos-amd64
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: go build -o docker-machine-driver-vcd cmd/main.go
+    - name: Create tar.gz
+      if: matrix.os == 'ubuntu-latest'
+      run: tar -czvf docker-machine-driver-vcd-linux-amd64.tgz docker-machine-driver-vcd
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.artifact_name }}
+        asset_name: ${{ matrix.asset_name }}
+        tag: ${{ github.ref }}
