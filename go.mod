@@ -1,6 +1,6 @@
 module github.com/DimKush/docker-driver-vcd
 
-go 1.19
+go 1.17
 
 require (
 	github.com/docker/machine v0.16.2
