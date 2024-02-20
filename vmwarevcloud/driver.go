@@ -603,120 +603,6 @@ func (d *Driver) Create() error {
 	return nil
 }
 
-func (d *Driver) Remove() error {
-	log.Info("Remove() running")
-
-	vdcClient := NewVCloudClient(d)
-
-	errBuild := vdcClient.buildInstance(d)
-	if errBuild != nil {
-		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
-		return errBuild
-	}
-
-	log.Info("Remove.VCloudClient Set up VApp before running")
-
-	vApp, err := vdcClient.getVDCApp(d)
-	if err != nil {
-		log.Errorf("Remove.getVDCApp error: %v", err)
-		return err
-	}
-
-	if d.EdgeGateway != "" && d.PublicIP != "" {
-		if d.VdcEdgeGateway != "" {
-			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetVDCByName error: %v", err)
-				return err
-			}
-			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
-				return err
-			}
-
-			log.Infof("Removing NAT and Firewall Rules on %s...", d.EdgeGateway)
-
-			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, d.PublicIP)
-			if err != nil {
-				return err
-			}
-			if err = task.WaitTaskCompletion(); err != nil {
-				return err
-			}
-		} else {
-			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
-			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
-
-			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
-			if err != nil {
-				return err
-			}
-
-			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete dnat error: %v", errDel)
-				return err
-			}
-
-			snat, err := edge.GetNatRuleByName(d.MachineName + "_snat")
-			if err != nil {
-				return err
-			}
-			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete snat error: %v", errDel)
-				return err
-			}
-		}
-	}
-
-	for {
-		status, err := vApp.GetStatus()
-		if err != nil {
-			log.Errorf("Remove.GetStatus error: %v", err)
-			return err
-		}
-
-		if status == "UNRESOLVED" {
-			log.Infof("Remove.Unresolved waiting for %s...", d.MachineName)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if status != "POWERED_OFF" {
-			log.Infof("Remove machine :%s status is %s. Power it off", d.MachineName, status)
-			task, err := vApp.PowerOff()
-
-			if err != nil {
-				log.Errorf("Remove.PowerOff error: %v", err)
-				return err
-			}
-
-			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("Remove.PowerOff.WaitTaskCompletion error: %v", err)
-				return err
-			}
-			break
-		} else {
-			log.Infof("Remove.Powered Off %s...", d.MachineName)
-			break
-		}
-	}
-
-	log.Infof("Remove.Delete %s...", d.MachineName)
-	task, err := vApp.Delete()
-	if err != nil {
-		return err
-	}
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.Undeploy.WaitTaskCompletion after undeploy error: %v", err)
-		return err
-	}
-
-	log.Infof("Remove.Deleting %s...", d.MachineName)
-
-	return nil
-}
-
 func (d *Driver) Start() error {
 	log.Info("Start() running")
 
@@ -817,6 +703,120 @@ func (d *Driver) Restart() error {
 
 	d.IPAddress, err = d.GetIP()
 	return err
+}
+
+func (d *Driver) Remove() error {
+	log.Info("Remove() running")
+
+	vdcClient := NewVCloudClient(d)
+
+	errBuild := vdcClient.buildInstance(d)
+	if errBuild != nil {
+		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
+		return errBuild
+	}
+
+	log.Info("Remove.VCloudClient Set up VApp before running")
+
+	vApp, err := vdcClient.getVDCApp(d)
+	if err != nil {
+		log.Errorf("Remove.getVDCApp error: %v", err)
+		return err
+	}
+
+	if d.EdgeGateway != "" && d.PublicIP != "" {
+		if d.VdcEdgeGateway != "" {
+			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
+			if err != nil {
+				log.Errorf("Remove.GetVDCByName error: %v", err)
+				return err
+			}
+			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
+			if err != nil {
+				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
+				return err
+			}
+
+			log.Infof("Removing NAT and Firewall Rules on %s...", d.EdgeGateway)
+
+			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, d.PublicIP)
+			if err != nil {
+				return err
+			}
+			if err = task.WaitTaskCompletion(); err != nil {
+				return err
+			}
+		} else {
+			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
+			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
+
+			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
+			if err != nil {
+				return err
+			}
+
+			if errDel := dnat.Delete(); errDel != nil {
+				log.Errorf("Remove.Delete dnat error: %v", errDel)
+				return err
+			}
+
+			snat, err := edge.GetNatRuleByName(d.MachineName + "_snat")
+			if err != nil {
+				return err
+			}
+			if errDel := snat.Delete(); errDel != nil {
+				log.Errorf("Remove.Delete snat error: %v", errDel)
+				return err
+			}
+		}
+	}
+
+	status, err := vApp.GetStatus()
+	if err != nil {
+		log.Errorf("Remove.GetStatus error: %v", err)
+		return err
+	}
+
+	if status == "POWERED_ON" {
+		// If it's powered on, power it off before deleting
+		log.Info("Remove() power it off %s...", d.MachineName)
+		task, err := vApp.PowerOff()
+		if err != nil {
+			log.Errorf("Remove.PowerOff error: %v", err)
+			return err
+		}
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+			return err
+		}
+	}
+
+	log.Debugf("Remove() Undeploying %s", d.MachineName)
+	task, err := vApp.Undeploy()
+	if err != nil {
+		log.Errorf("Remove.Undeploy error: %v", err)
+		return err
+	}
+
+	if err = task.WaitTaskCompletion(); err != nil {
+		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+		return err
+	}
+
+	log.Infof("Remove() Deleting %s", d.MachineName)
+
+	task, err = vApp.Delete()
+	if err != nil {
+		log.Errorf("Remove.Delete error: %v", err)
+		return err
+	}
+
+	if err = task.WaitTaskCompletion(); err != nil {
+		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func (d *Driver) Kill() error {
@@ -961,10 +961,124 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 	return section, nil
 }
 
+func (d *Driver) removeIfError() error {
+	log.Info("Remove() running")
+
+	vdcClient := NewVCloudClient(d)
+
+	errBuild := vdcClient.buildInstance(d)
+	if errBuild != nil {
+		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
+		return errBuild
+	}
+
+	log.Info("Remove.VCloudClient Set up VApp before running")
+
+	vApp, err := vdcClient.getVDCApp(d)
+	if err != nil {
+		log.Errorf("Remove.getVDCApp error: %v", err)
+		return err
+	}
+
+	if d.EdgeGateway != "" && d.PublicIP != "" {
+		if d.VdcEdgeGateway != "" {
+			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
+			if err != nil {
+				log.Errorf("Remove.GetVDCByName error: %v", err)
+				return err
+			}
+			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
+			if err != nil {
+				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
+				return err
+			}
+
+			log.Infof("Removing NAT and Firewall Rules on %s...", d.EdgeGateway)
+
+			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, d.PublicIP)
+			if err != nil {
+				return err
+			}
+			if err = task.WaitTaskCompletion(); err != nil {
+				return err
+			}
+		} else {
+			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
+			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
+
+			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
+			if err != nil {
+				return err
+			}
+
+			if errDel := dnat.Delete(); errDel != nil {
+				log.Errorf("Remove.Delete dnat error: %v", errDel)
+				return err
+			}
+
+			snat, err := edge.GetNatRuleByName(d.MachineName + "_snat")
+			if err != nil {
+				return err
+			}
+			if errDel := snat.Delete(); errDel != nil {
+				log.Errorf("Remove.Delete snat error: %v", errDel)
+				return err
+			}
+		}
+	}
+
+	for {
+		status, err := vApp.GetStatus()
+		if err != nil {
+			log.Errorf("Remove.GetStatus error: %v", err)
+			return err
+		}
+
+		if status == "UNRESOLVED" {
+			log.Infof("Remove.Unresolved waiting for %s...", d.MachineName)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if status != "POWERED_OFF" {
+			log.Infof("Remove machine :%s status is %s. Power it off", d.MachineName, status)
+			task, err := vApp.PowerOff()
+
+			if err != nil {
+				log.Errorf("Remove.PowerOff error: %v", err)
+				return err
+			}
+
+			if err = task.WaitTaskCompletion(); err != nil {
+				log.Errorf("Remove.PowerOff.WaitTaskCompletion error: %v", err)
+				return err
+			}
+			break
+		} else {
+			log.Infof("Remove.Powered Off %s...", d.MachineName)
+			break
+		}
+	}
+
+	log.Infof("Remove.Delete %s...", d.MachineName)
+	task, err := vApp.Delete()
+	if err != nil {
+		return err
+	}
+	if err = task.WaitTaskCompletion(); err != nil {
+		log.Errorf("Remove.Undeploy.WaitTaskCompletion after undeploy error: %v", err)
+		return err
+	}
+
+	log.Infof("Remove.Deleting %s...", d.MachineName)
+
+	return nil
+}
+
 func (d *Driver) deleteMachineError(err error) error {
 	log.Infof("deleteMachine reason ----> %v", err)
 
-	if errRemove := d.Remove(); err != nil {
+	if errRemove := d.removeIfError(); err != nil {
 		log.Errorf("deleteMachine %v", errRemove)
 		return errRemove
 	}
