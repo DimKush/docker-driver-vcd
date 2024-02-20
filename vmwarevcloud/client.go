@@ -99,7 +99,6 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 				NeedsCustomization:      true,
 			}
 
-
 	}
 
 	c.vAppTemplate = vAppTemplate
