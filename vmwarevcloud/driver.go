@@ -35,9 +35,9 @@ type Driver struct {
 	PublicIP       string
 	EdgeGateway    string
 	VdcEdgeGateway string
-	NumCPUs        int
-	MemorySizeMB   int
-	DiskSizeMB     int
+	CPUCount       int
+	MemorySize     int
+	DiskSize       int
 
 	// SSH config
 	InitData string
@@ -50,14 +50,14 @@ type Driver struct {
 	Href                    string
 	UserName                string
 	UserPassword            string
-	Organization            string
+	Org                     string
 	VDC                     string
 	OrgVDCNet               string
 	Catalog                 string
 	CatalogItem             string
-	StoreProfile            string
+	StorProfile             string
 	VAppID                  string
-	URL                     *url.URL
+	Url                     *url.URL
 	Insecure                bool
 }
 
@@ -75,9 +75,9 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 	return &Driver{
 		Catalog:                 defaultCatalog,
 		CatalogItem:             defaultCatalogItem,
-		NumCPUs:                 defaultCpus,
-		MemorySizeMB:            defaultMemory,
-		DiskSizeMB:              defaultDisk,
+		CPUCount:                defaultCpus,
+		MemorySize:              defaultMemory,
+		DiskSize:                defaultDisk,
 		DockerPort:              defaultDockerPort,
 		Insecure:                defaultInsecure,
 		Rke2:                    defaultRke2,
@@ -231,15 +231,16 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 }
 
 func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
+
 	d.UserName = flags.String("vcd-username")
 	d.UserPassword = flags.String("vcd-password")
 	d.VDC = flags.String("vcd-vdc")
-	d.Organization = flags.String("vcd-org")
+	d.Org = flags.String("vcd-org")
 	d.Href = flags.String("vcd-href")
 	d.Insecure = flags.Bool("vcd-insecure")
 	d.Rke2 = flags.Bool("vcd-rke2")
 	d.PublicIP = flags.String("vcd-publicip")
-	d.StoreProfile = flags.String("vcd-storprofile")
+	d.StorProfile = flags.String("vcd-storprofile")
 	d.UserData = flags.String("vcd-user-data")
 	d.InitData = flags.String("vcd-init-data")
 	d.AdapterType = flags.String("vcd-networkadaptertype")
@@ -247,15 +248,15 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SetSwarmConfigFromFlags(flags)
 
 	// Check for required Params
-	if d.UserName == "" || d.UserPassword == "" || d.Href == "" || d.VDC == "" || d.Organization == "" || d.StoreProfile == "" {
-		return fmt.Errorf("please specify vclouddirector mandatory params using options: -vcd-username -vcd-password -vcd-vdc -vcd-href -vcd-org and -vcd-storprofile")
+	if d.UserName == "" || d.UserPassword == "" || d.Href == "" || d.VDC == "" || d.Org == "" || d.StorProfile == "" {
+		return fmt.Errorf("Please specify vclouddirector mandatory params using options: -vcd-username -vcd-password -vcd-vdc -vcd-href -vcd-org and -vcd-storprofile")
 	}
 
 	u, err := url.ParseRequestURI(d.Href)
 	if err != nil {
 		return fmt.Errorf("Unable to pass url: %s", err)
 	}
-	d.URL = u
+	d.Url = u
 
 	// If the Org VDC Network is empty, set it to the default routed network.
 	if flags.String("vcd-orgvdcnetwork") == "" {
@@ -264,7 +265,13 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 		d.OrgVDCNet = flags.String("vcd-orgvdcnetwork")
 	}
 
+	// If the Edge Gateway is empty, just set it to the default edge gateway.
+	// if flags.String("vcd-edgegateway") == "" {
+	// 	d.EdgeGateway = flags.String("vcd-org")
+	// } else {
 	d.EdgeGateway = flags.String("vcd-edgegateway")
+	// }
+
 	d.VdcEdgeGateway = flags.String("vcd-vdcedgegateway")
 
 	d.Catalog = flags.String("vcd-catalog")
@@ -273,9 +280,9 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.DockerPort = flags.Int("vcd-docker-port")
 	d.SSHUser = flags.String("vcd-ssh-user")
 	d.SSHPort = flags.Int("vcd-ssh-port")
-	d.NumCPUs = flags.Int("vcd-cpu-count")
-	d.MemorySizeMB = flags.Int("vcd-memory-size")
-	d.DiskSizeMB = flags.Int("vcd-disk-size")
+	d.CPUCount = flags.Int("vcd-cpu-count")
+	d.MemorySize = flags.Int("vcd-memory-size")
+	d.DiskSize = flags.Int("vcd-disk-size")
 	d.PrivateIP = d.PublicIP
 
 	return nil
@@ -305,18 +312,25 @@ func (d *Driver) DriverName() string {
 func (d *Driver) GetState() (state.State, error) {
 	log.Info("GetState() running")
 
-	// check vcd platform state
 	vdcClient := NewVCloudClient(d)
 
-	vApp, errVdc := vdcClient.getVDCApp(d)
-	if errVdc != nil {
-		log.Errorf("Start.getVDC error: %v", errVdc)
-		return state.Error, errVdc
+	errBuild := vdcClient.buildInstance(d)
+	if errBuild != nil {
+		log.Errorf("GetState.buildInstance vdc error: %v", errBuild)
+		return state.Error, errBuild
+	}
+
+	log.Info("GetState.VCloudClient Set up VApp before running")
+
+	vApp, errApp := vdcClient.virtualDataCenter.GetVAppById(d.VAppID, true)
+	if errApp != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
+		return state.Error, errApp
 	}
 
 	status, errStatus := vApp.GetStatus()
 	if errStatus != nil {
-		log.Errorf("Start.getVcdStatus.GetStatus error: %v", errStatus)
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errStatus)
 		return state.Error, errStatus
 	}
 
@@ -325,9 +339,8 @@ func (d *Driver) GetState() (state.State, error) {
 		return state.Running, nil
 	case "POWERED_OFF":
 		return state.Stopped, nil
-	default:
-		return state.None, nil
 	}
+	return state.None, nil
 }
 
 func (d *Driver) Create() error {
@@ -521,7 +534,7 @@ func (d *Driver) Create() error {
 				FirewallMatch:     types.NsxtNatRuleFirewallMatchBypass,
 			}
 
-			adminOrg, errAdmin := vdcClient.client.GetAdminOrgByName(d.Organization)
+			adminOrg, errAdmin := vdcClient.client.GetAdminOrgByName(d.Org)
 			if errAdmin != nil {
 				log.Errorf("Create.GetAdminOrgByName error: %v", errAdmin)
 				errDel = fmt.Errorf("GetAdminOrgByName error %w", errAdmin)
@@ -638,7 +651,7 @@ func (d *Driver) Remove() error {
 				return err
 			}
 		} else {
-			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Organization)
+			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
 			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
 
 			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
@@ -872,14 +885,14 @@ func getRancherCloudInit(s string) string {
 
 func (d *Driver) postSettingsVM(vm *govcd.VM) error {
 	var numCPUsPtr *int
-	numCPUsPtr = &d.NumCPUs
+	numCPUsPtr = &d.CPUCount
 
 	vmSpecs := *vm.VM.VmSpecSection
 
 	vmSpecs.NumCpus = numCPUsPtr
 	vmSpecs.NumCoresPerSocket = numCPUsPtr
-	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySizeMB)
-	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSizeMB)
+	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySize)
+	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSize)
 
 	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
 	if errUpd != nil {

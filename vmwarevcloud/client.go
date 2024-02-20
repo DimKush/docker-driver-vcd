@@ -19,7 +19,7 @@ type VCloudClient struct {
 
 func NewVCloudClient(d *Driver) *VCloudClient {
 	// creates a new VCDClient with params
-	vcdClient := govcd.NewVCDClient(*d.URL, d.Insecure)
+	vcdClient := govcd.NewVCDClient(*d.Url, d.Insecure)
 
 	return &VCloudClient{
 		client: vcdClient,
@@ -27,16 +27,16 @@ func NewVCloudClient(d *Driver) *VCloudClient {
 }
 
 func (c *VCloudClient) buildInstance(d *Driver) error {
-	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", d.URL, d.UserName)
+	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", d.Url, d.UserName)
 	// Authenticate to vCloud Director
-	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Organization)
+	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Org)
 	if errAuth != nil {
 		log.Errorf("buildVdcApplication.Authenticate error: %v", errAuth)
 		return errAuth
 	}
 
 	// Prepare vdc application
-	org, errOrg := c.client.GetOrgByName(d.Organization)
+	org, errOrg := c.client.GetOrgByName(d.Org)
 	if errAuth != nil {
 		log.Errorf("buildInstance.GetOrgById error: %v", errOrg)
 		return errOrg
@@ -73,7 +73,7 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 	}
 
 	// Get StorageProfileReference
-	storageProfileRef, errProf := vdc.FindStorageProfileReference(d.StoreProfile)
+	storageProfileRef, errProf := vdc.FindStorageProfileReference(d.StorProfile)
 	if errProf != nil {
 		log.Errorf("buildInstance.FindStorageProfileReference error: %v", errProf)
 		return errProf
@@ -111,17 +111,17 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 }
 
 func (c *VCloudClient) getVDCApp(d *Driver) (*govcd.VApp, error) {
-	log.Infof("getVcdStatus Connecting vCloud with url %s and name: %s", d.URL.Path, d.UserName)
+	log.Infof("getVcdStatus Connecting vCloud with url %s and name: %s", d.Url.Path, d.UserName)
 
 	// Authenticate to vCloud Director
-	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Organization)
+	errAuth := c.client.Authenticate(d.UserName, d.UserPassword, d.Org)
 	if errAuth != nil {
 		log.Errorf("getVDC.Authenticate error: %v", errAuth)
 		return nil, errAuth
 	}
 
 	// Prepare vdc application
-	org, errOrg := c.client.GetOrgByName(d.Organization)
+	org, errOrg := c.client.GetOrgByName(d.Org)
 	if errAuth != nil {
 		log.Errorf("getVDC.GetOrgById error: %v", errOrg)
 		return nil, errOrg
