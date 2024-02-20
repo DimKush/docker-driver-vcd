@@ -364,24 +364,12 @@ func (d *Driver) Create() error {
 		return err
 	}
 
-	taskNet, errTaskNet := vApp.AddRAWNetworkConfig(networks)
-	if errTaskNet != nil {
-		log.Errorf("Create.AddRAWNetworkConfig error: %v", errTaskNet)
-		return errTaskNet
-	}
-
-	if err := taskNet.WaitTaskCompletion(); err != nil {
-		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", err)
-		return err
-	}
-
-	cfgSection, err := vApp.GetNetworkConnectionSection()
-	if err != nil {
-		log.Errorf("Create.GetNetworkConnectionSection error: %v", err)
-		return err
-	}
-
-	task, err := vApp.AddNewVM(d.MachineName, vdcClient.vAppTemplate, cfgSection, true)
+	task, err := vApp.AddNewVM(
+		d.MachineName,
+		vdcClient.vAppTemplate,
+		vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection,
+		true,
+	)
 	if err != nil {
 		log.Errorf("Create.AddNewVM error: %v", err)
 		return err
@@ -391,20 +379,6 @@ func (d *Driver) Create() error {
 		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", errTask)
 		return errTask
 	}
-
-	//// Up vApp with template
-	//task, errCompose := vdcClient.virtualDataCenter.ComposeVApp(
-	//	networks,
-	//	vdcClient.vAppTemplate,
-	//	vdcClient.storageProfileRef,
-	//	d.MachineName,
-	//	"Container Host created with Docker Host",
-	//	true,
-	//)
-	//if errCompose != nil {
-	//	log.Errorf("Create.ComposeVApp error: %v", errCompose)
-	//	return errCompose
-	//}
 
 	vApp, errApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
 	if errApp != nil {
@@ -690,7 +664,7 @@ func (d *Driver) Remove() error {
 		}
 	}
 
-	log.Infof("Remove.Undeploying %s...", d.MachineName)
+	log.Infof("Remove.Delete %s...", d.MachineName)
 	task, err := vApp.Delete()
 	if err != nil {
 		return err
