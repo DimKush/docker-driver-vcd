@@ -86,20 +86,18 @@ func (c *VCloudClient) buildInstance(d *Driver) error {
 	}
 
 	vAppTemplate.VAppTemplate.Children.VM[0].Name = d.MachineName
-	if d.AdapterType != "" {
-		log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
 
-		vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0] =
-			&types.NetworkConnection{
-				Network:                 d.OrgVDCNet,
-				NetworkAdapterType:      d.AdapterType,
-				IPAddressAllocationMode: d.IPAddressAllocationMode,
-				NetworkConnectionIndex:  0,
-				IsConnected:             true,
-				NeedsCustomization:      true,
-			}
+	log.Infof("Create.postSettingsVM change network to %s...", d.AdapterType)
 
-	}
+	vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection[0] =
+		&types.NetworkConnection{
+			Network:                 d.OrgVDCNet,
+			NetworkAdapterType:      d.AdapterType,
+			IPAddressAllocationMode: d.IPAddressAllocationMode,
+			NetworkConnectionIndex:  0,
+			IsConnected:             true,
+			NeedsCustomization:      true,
+		}
 
 	c.vAppTemplate = vAppTemplate
 	c.storageProfileRef = storageProfileRef
