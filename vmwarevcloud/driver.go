@@ -929,7 +929,7 @@ func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSect
 
 	scriptSh = d.InitData + "\n"
 	// append ssh user to script
-	scriptSh += "\nuseradd -m -d /home/" + d.SSHUser + " -s /bin/bash " + d.SSHUser + "\nmkdir -p /home/" + d.SSHUser + "/.ssh\nchown -R " + d.SSHUser + ":" + d.SSHUser + " /home/" + d.SSHUser + "/.ssh\nchmod 700 /home/" + d.SSHUser + "/.ssh\ntouch /home/" + d.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + d.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + d.SSHUser + "\necho \"" + strings.TrimSpace(sshKey) + "\" > /home/" + d.SSHUser + "/.ssh/authorized_keys\necho \"" + d.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\n"
+	scriptSh += "\nuseradd -m -d /home/" + d.SSHUser + " -s /bin/bash " + d.SSHUser + "\nmkdir -p /home/" + d.SSHUser + "/.ssh\nchmod 700 /home/" + d.SSHUser + "/.ssh\ntouch /home/" + d.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + d.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + d.SSHUser + "\necho \"" + strings.TrimSpace(sshKey) + "\" > /home/" + d.SSHUser + "/.ssh/authorized_keys\necho \"" + d.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + d.SSHUser + ":" + d.SSHUser + " -R /home/" + d.SSHUser + "\n"
 
 	if d.Rke2 {
 		// if rke2
