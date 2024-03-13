@@ -1,15 +1,24 @@
 package vmwarevcloud
 
 import (
+	"net/url"
+
 	"github.com/docker/machine/libmachine/log"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
 
+type CommandBuildInstance struct {
+	UserName     string
+	UserPassword string
+	Org          string
+	VCD          string
+	OrgVDCNet    string
+}
+
 type VCloudClient struct {
 	client            *govcd.VCDClient
 	virtualDataCenter *govcd.Vdc
-	vApp              *govcd.VApp
 	org               *govcd.Org
 	storageProfileRef types.Reference
 	vAppTemplate      govcd.VAppTemplate
@@ -17,9 +26,9 @@ type VCloudClient struct {
 	catalogItem       *govcd.CatalogItem
 }
 
-func NewVCloudClient(d *Driver) *VCloudClient {
+func NewVCloudClient(url url.URL, insecure bool) *VCloudClient {
 	// creates a new VCDClient with params
-	vcdClient := govcd.NewVCDClient(*d.Url, d.Insecure)
+	vcdClient := govcd.NewVCDClient(url, insecure)
 
 	return &VCloudClient{
 		client: vcdClient,

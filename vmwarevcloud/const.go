@@ -17,4 +17,5 @@ const (
 	defaultSSHUser                 = "docker"
 	defaultAdapterType             = ""
 	defaultIPAddressAllocationMode = types.IPAllocationModeDHCP
+	defaultVAppName                = "docker-machine-default"
 )
