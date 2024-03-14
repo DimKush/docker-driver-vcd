@@ -22,3 +22,15 @@ type Processor interface {
 	Restart() error
 	Start() error
 }
+
+type ConfigProcessor struct {
+	VAppName       string
+	CPUCount       int
+	MemorySize     int64
+	DiskSize       int64
+	EdgeGateway    string
+	PublicIP       string
+	VdcEdgeGateway string
+	Org            string
+	VAppID         string
+}
