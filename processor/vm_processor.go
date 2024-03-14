@@ -1,4 +1,4 @@
-package vmwarevcloud
+package processor
 
 type VmProcessor struct {
 }

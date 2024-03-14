@@ -6,17 +6,15 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/DimKush/docker-driver-vcd/client"
+	processor "github.com/DimKush/docker-driver-vcd/processor"
 	"github.com/docker/machine/libmachine/drivers"
 	log "github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
 	"github.com/docker/machine/libmachine/ssh"
 	"github.com/docker/machine/libmachine/state"
-	"github.com/vmware/go-vcloud-director/v2/govcd"
-	"github.com/vmware/go-vcloud-director/v2/types/v56"
-	"gopkg.in/yaml.v2"
 )
 
 type Driver struct {
@@ -46,16 +44,7 @@ type Driver struct {
 	Org                     string
 	Insecure                bool
 	Rke2                    bool
-}
-
-type RancherCloudInit struct {
-	Runcmd     []string `yaml:"runcmd"`
-	WriteFiles []struct {
-		Content     string `yaml:"content"`
-		Encoding    string `yaml:"encoding"`
-		Path        string `yaml:"path"`
-		Permissions string `yaml:"permissions"`
-	} `yaml:"write_files"`
+	VCDConfigClient         client.ConfigClient
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
@@ -272,6 +261,24 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.DiskSize = flags.Int("vcd-disk-size")
 	d.PrivateIP = d.PublicIP
 
+	clientConfig := client.ConfigClient{
+		MachineName:             d.MachineName,
+		UserName:                d.UserName,
+		UserPassword:            d.UserPassword,
+		Org:                     d.Org,
+		VDC:                     d.VDC,
+		OrgVDCNet:               d.OrgVDCNet,
+		Catalog:                 d.Catalog,
+		CatalogItem:             d.CatalogItem,
+		StorProfile:             d.StorProfile,
+		AdapterType:             d.AdapterType,
+		IPAddressAllocationMode: d.IPAddressAllocationMode,
+		Url:                     d.Url,
+		Insecure:                d.Insecure,
+	}
+
+	d.VCDConfigClient = clientConfig
+
 	return nil
 }
 
@@ -299,9 +306,9 @@ func (d *Driver) DriverName() string {
 func (d *Driver) GetState() (state.State, error) {
 	log.Info("GetState() running")
 
-	vdcClient := NewVCloudClient(d)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
-	errBuild := vdcClient.buildInstance(d)
+	errBuild := vcdClient.BuildInstance()
 	if errBuild != nil {
 		log.Errorf("GetState.buildInstance vdc error: %v", errBuild)
 		return state.Error, errBuild
@@ -309,7 +316,7 @@ func (d *Driver) GetState() (state.State, error) {
 
 	log.Info("GetState.VCloudClient Set up VApp before running")
 
-	vApp, errApp := vdcClient.virtualDataCenter.GetVAppById(d.VAppID, true)
+	vApp, errApp := vcdClient.VirtualDataCenter.GetVAppById(d.VAppID, true)
 	if errApp != nil {
 		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
 		return state.Error, errApp
@@ -331,254 +338,73 @@ func (d *Driver) GetState() (state.State, error) {
 }
 
 func (d *Driver) Create() error {
+	// create ssh key
+	sshKey, errSsh := d.createSSHKey()
+	if errSsh != nil {
+		log.Errorf("Create().createSSHKey error: %s", errSsh)
+		return errSsh
+	}
+
 	log.Info("Create() running")
 
-	var errDel error
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
-	defer func() {
-		if errDel != nil {
-			if err := d.deleteMachineError(errDel); err != nil {
-				log.Errorf("Create.deleteMachineError error: %v", err)
-			}
-		}
-	}()
-
-	vdcClient := NewVCloudClient(d)
-
-	errBuild := vdcClient.buildInstance(d)
+	errBuild := vcdClient.BuildInstance()
 	if errBuild != nil {
 		log.Errorf("Create.buildInstance vdc error: %v", errBuild)
 		return errBuild
 	}
 
-	log.Info("Create.VCloudClient Set up VApp before running")
+	log.Info("Create().VCloudClient Set up VApp before running")
 
-	networks := make([]*types.OrgVDCNetwork, 0)
-	networks = append(networks, vdcClient.network.OrgVDCNetwork)
-
-	log.Info("Create.VCloudClient Creates new vApp and virtual machine")
-
-	vApp, err := vdcClient.virtualDataCenter.CreateRawVApp(d.MachineName, "Container Host created with Docker Host")
-	if err != nil {
-		log.Errorf("Create.CreateRawVApp error: %v", err)
-		return err
+	// custom config for script
+	confCustom := processor.CustomScriptConfigVAppProcessor{
+		VAppName: d.MachineName,
+		SSHKey:   sshKey,
+		SSHUser:  d.SSHUser,
+		UserData: d.UserData,
+		InitData: d.InitData,
+		Rke2:     d.Rke2,
 	}
 
-	taskNet, errTaskNet := vApp.AddRAWNetworkConfig(networks)
-	if errTaskNet != nil {
-		log.Errorf("Create.AddRAWNetworkConfig error: %v", errTaskNet)
-		errDel = fmt.Errorf("Create.AddRAWNetworkConfig error: %w", errTaskNet)
-
-		return errTaskNet
+	// creates Processor
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
 	}
 
-	if err := taskNet.WaitTaskCompletion(); err != nil {
-		log.Errorf("Create.WaitTaskCompletion vdcClient.virtualDataCenter.ComposeVApp error: %v", err)
-		errDel = fmt.Errorf("Create.WaitTaskCompletion vdcClient.virtualDataCenter.ComposeVApp error: %w", err)
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
 
-		return err
+	vApp, errVApp := proc.Create(confCustom)
+	if errVApp != nil {
+		log.Errorf("Create.CreateVAppWithVM error: %v", errVApp)
+		return errVApp
 	}
 
-	task, err := vApp.AddNewVM(
-		d.MachineName,
-		vdcClient.vAppTemplate,
-		vdcClient.vAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection,
-		true,
-	)
-	if err != nil {
-		log.Errorf("Create.AddNewVM error: %v", err)
-		errDel = fmt.Errorf("Create.AddNewVM error: %v", err)
-
-		return err
-	}
-	// Wait for the creation to be completed
-	if errTask := task.WaitTaskCompletion(); errTask != nil {
-		log.Errorf("Create.WaitTaskCompletion  vdcClient.virtualDataCenter.ComposeVApp error: %v", errTask)
-		errDel = fmt.Errorf("Create.WaitTaskCompletion: %v", err)
-
-		return errTask
-	}
-
-	vApp, errApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
-	if errApp != nil {
-		log.Errorf("Create.GetVAppByName error: with machine %d error: %v", d.MachineName, errApp)
-		errDel = fmt.Errorf("Create.GetVAppByName: %v", err)
-
-		return errApp
-	}
-
-	virtualMachine, errMachine := vApp.GetVMByName(d.MachineName, true)
-	if errMachine != nil {
-		log.Errorf("Create.GetVMByName error: %v", errMachine)
-		errDel = fmt.Errorf("Create.GetVMByName error: %v", err)
-
-		return errMachine
-	}
-
-	log.Info("Create.wait waiting for vm")
-	// Wait while vm is creating
-	for {
-		vApp, errVApp := vdcClient.virtualDataCenter.GetVAppByName(d.MachineName, true)
-		if errVApp != nil {
-			log.Errorf("Create.GetVAppByName error: with machine %d error: %v", d.MachineName, errVApp)
-			errDel = fmt.Errorf("Create.GetVMByName error: %w", errVApp)
-
-			return errVApp
-		}
-
-		vm, err := vApp.GetVMByName(d.MachineName, true)
-		if err != nil {
-			log.Errorf("Create.GetVMByName error: %v", err)
-			errDel = fmt.Errorf("Create.GetVMByName error: %w", err)
-
-			return err
-		}
-
-		if vm.VM.VmSpecSection != nil {
-			// when the VM will get its specs, check status of the VM
-			status, errStatus := vApp.GetStatus()
-			if errStatus != nil {
-				log.Errorf("Create.GetStatus error: %v", errStatus)
-				errDel = fmt.Errorf("GetStatus error %w", errStatus)
-
-				return errStatus
-			}
-
-			log.Infof("Create.waiting for vm created and powered off. Current status: %s", status)
-
-			if status == "POWERED_OFF" {
-				virtualMachine = vm
-				break
-			}
-		}
-
-		time.Sleep(time.Second * 1)
-	}
-
-	log.Info("Create vm was created and powered off. Set post-settings before run VM")
-	err = d.postSettingsVM(virtualMachine)
-	if err != nil {
-		log.Errorf("Create.postSettingsVM error: %v", err)
-		errDel = fmt.Errorf("postSettingsVM error %w", err)
-
-		return err
-	}
-
-	if d.EdgeGateway != "" && d.PublicIP != "" {
-		if d.VdcEdgeGateway != "" {
-			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
-			if err != nil {
-				errDel = fmt.Errorf("GetVDCByName error %w", err)
-
-				return err
-			}
-
-			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
-			if err != nil {
-				errDel = fmt.Errorf("GetEdgeGatewayByName error %w", err)
-
-				return err
-			}
-
-			log.Infof("Creating NAT and Firewall Rules on %s...", d.EdgeGateway)
-
-			task, errMap := edge.Create1to1Mapping(
-				virtualMachine.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress,
-				d.PublicIP,
-				d.MachineName,
-			)
-			if errMap != nil {
-				log.Errorf("Create.Create1to1Mapping error: %v", errMap)
-				errDel = fmt.Errorf("Create1to1Mapping error %w", errMap)
-
-				return err
-			}
-
-			if errTask := task.WaitTaskCompletion(); errTask != nil {
-				log.Errorf("Create.WaitTaskCompletion.WaitTaskCompletion error: %v", errMap)
-				errDel = fmt.Errorf("WaitTaskCompletion error %w", errMap)
-
-				return errTask
-			}
-		} else {
-			snatRuleDefinition := &types.NsxtNatRule{
-				Name:              d.MachineName + "_snat",
-				Description:       d.MachineName,
-				Enabled:           true,
-				RuleType:          types.NsxtNatRuleTypeSnat,
-				ExternalAddresses: virtualMachine.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress,
-				InternalAddresses: d.PublicIP,
-				FirewallMatch:     types.NsxtNatRuleFirewallMatchBypass,
-			}
-
-			dnatRuleDefinition := &types.NsxtNatRule{
-				Name:              d.MachineName + "_dnat",
-				Description:       d.MachineName,
-				Enabled:           true,
-				RuleType:          types.NsxtNatRuleTypeDnat,
-				ExternalAddresses: d.PublicIP,
-				InternalAddresses: virtualMachine.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress,
-				FirewallMatch:     types.NsxtNatRuleFirewallMatchBypass,
-			}
-
-			adminOrg, errAdmin := vdcClient.client.GetAdminOrgByName(d.Org)
-			if errAdmin != nil {
-				log.Errorf("Create.GetAdminOrgByName error: %v", errAdmin)
-				errDel = fmt.Errorf("GetAdminOrgByName error %w", errAdmin)
-
-				return errAdmin
-			}
-
-			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
-			if edge != nil {
-				log.Errorf("Create.GetNsxtEdgeGatewayByName error: %v", err)
-				errDel = fmt.Errorf("GetNsxtEdgeGatewayByName error %w", err)
-
-				return err
-			}
-
-			_, err = edge.CreateNatRule(snatRuleDefinition)
-			if err != nil {
-				log.Errorf("Create.CreateNatRule error: %v", err)
-				errDel = fmt.Errorf("CreateNatRule error %w", err)
-
-				return err
-			}
-
-			_, err = edge.CreateNatRule(dnatRuleDefinition)
-			if err != nil {
-				log.Errorf("Create.CreateNatRule error: %v", err)
-				errDel = fmt.Errorf("CreateNatRule error %w", err)
-
-				return err
-			}
-		}
-	}
-
-	// try to run vApp and machine
-	log.Infof("Create Try to run virtual machine %s", d.MachineName)
 	task, errPowerOn := vApp.PowerOn()
 	if errPowerOn != nil {
 		log.Errorf("Create.PowerOn error: %v", errPowerOn)
-		errDel = fmt.Errorf("CreateNatRule error %w", errPowerOn)
-
 		return errPowerOn
 	}
 
 	if errTask := task.WaitTaskCompletion(); errTask != nil {
 		log.Errorf("Create.PowerOn.WaitTaskCompletion error: %v", errTask)
-		errDel = fmt.Errorf("Create.PowerOn.WaitTaskCompletion error %w", errPowerOn)
-
 		return errTask
 	}
 
 	// check status of VM after task powered on
+
 	for {
 		vm, errVM := vApp.GetVMByName(d.MachineName, true)
 		if errVM != nil {
 			log.Errorf("Create.GetVMByName error: %v", errVM)
-			errDel = fmt.Errorf("Create.GetVMByName %w", errVM)
-
 			return errVM
 		}
 
@@ -592,13 +418,14 @@ func (d *Driver) Create() error {
 
 	d.VAppID = vApp.VApp.ID
 
-	d.IPAddress, err = d.GetIP()
-	if err != nil {
-		log.Errorf("Create.GetIP error: %v", err)
-		errDel = fmt.Errorf("Create.GetIP error %w", err)
+	ip, errIP := d.GetIP()
+	if errIP != nil {
+		log.Errorf("Create.GetIP error: %v", errIP)
 
-		return err
+		return errIP
 	}
+
+	d.IPAddress = ip
 
 	return nil
 }
@@ -606,39 +433,51 @@ func (d *Driver) Create() error {
 func (d *Driver) Start() error {
 	log.Info("Start() running")
 
-	// check vcd platform state
-	vdcClient := NewVCloudClient(d)
-
-	log.Info("Start.VCloudClient.getVDCApp")
-
-	vApp, errVdc := vdcClient.getVDCApp(d)
-	if errVdc != nil {
-		log.Errorf("Start.getVDC error: %v", errVdc)
-		return errVdc
+	clientConfig := client.ConfigClient{
+		MachineName:             d.MachineName,
+		UserName:                d.UserName,
+		UserPassword:            d.UserPassword,
+		Org:                     d.Org,
+		VDC:                     d.VDC,
+		OrgVDCNet:               d.OrgVDCNet,
+		Catalog:                 d.Catalog,
+		CatalogItem:             d.CatalogItem,
+		StorProfile:             d.StorProfile,
+		AdapterType:             d.AdapterType,
+		IPAddressAllocationMode: d.IPAddressAllocationMode,
+		Url:                     d.Url,
+		Insecure:                d.Insecure,
 	}
 
-	status, err := vApp.GetStatus()
-	if err != nil {
-		log.Errorf("Start.getVcdStatus.GetStatus error: %v", vApp)
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	// check vcd platform state
+	vcdClient := client.NewVCloudClient(clientConfig)
+
+	errBuild := vcdClient.BuildInstance()
+	if errBuild != nil {
+		log.Errorf("Start.buildInstance vdc error: %v", errBuild)
+		return errBuild
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
+
+	if err := proc.Start(); err != nil {
+		log.Errorf("Kill error: %v", err)
 		return err
 	}
 
-	log.Infof("Start.GetStatus current status :%s", status)
-
-	if status == "POWERED_OFF" {
-		log.Info("Start.VCloudClient Start machine %s app id %d", d.MachineName, d.VAppID)
-		task, errOn := vApp.PowerOn()
-		if errOn != nil {
-			log.Errorf("Start.PowerOn error: %v", errOn)
-			return errOn
-		}
-
-		if errTask := task.WaitTaskCompletion(); errTask != nil {
-			log.Errorf("Start.WaitTaskCompletion error: %v", errTask)
-			return errTask
-		}
-	}
-
+	var err error
 	d.IPAddress, err = d.GetIP()
 	if err != nil {
 		log.Errorf("Start.GetIP error: %v", err)
@@ -651,28 +490,33 @@ func (d *Driver) Start() error {
 func (d *Driver) Stop() error {
 	log.Info("Stop() running")
 
-	vdcClient := NewVCloudClient(d)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
+
+	errBuild := vcdClient.BuildInstance()
+	if errBuild != nil {
+		log.Errorf("Restart.buildInstance vdc error: %v", errBuild)
+		return errBuild
+	}
 
 	log.Info("Stop.VCloudClient.getVDCApp")
 
-	vApp, errVdc := vdcClient.getVDCApp(d)
-	if errVdc != nil {
-		log.Errorf("Stop.getVDC error: %v", errVdc)
-		return errVdc
+	// creates Processor
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
 	}
-
-	task, errTask := vApp.Shutdown()
-	if errTask != nil {
-		log.Errorf("Stop.PowerOff error: %v", errTask)
-		return errTask
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
+	if err := proc.Stop(); err != nil {
+		log.Errorf("Stop error: %v", err)
+		return err
 	}
-
-	if errWait := task.WaitTaskCompletion(); errTask != nil {
-		log.Errorf("Stop.WaitTaskCompletion error: %v", errWait)
-		return errWait
-	}
-
-	d.IPAddress = ""
 
 	return nil
 }
@@ -680,139 +524,67 @@ func (d *Driver) Stop() error {
 func (d *Driver) Restart() error {
 	log.Info("Restart() running")
 
-	vdcClient := NewVCloudClient(d)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
-	log.Info("Stop.VCloudClient.getVDCApp")
-
-	vApp, errVdc := vdcClient.getVDCApp(d)
-	if errVdc != nil {
-		log.Errorf("Stop.getVDC error: %v", errVdc)
-		return errVdc
+	errBuild := vcdClient.BuildInstance()
+	if errBuild != nil {
+		log.Errorf("Restart.buildInstance vdc error: %v", errBuild)
+		return errBuild
 	}
 
-	task, err := vApp.Reset()
-	if err != nil {
-		log.Errorf("Stop.Reset error: %v", err)
+	log.Info("Restart.VCloudClient create new processor")
+	// creates Processor
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
+	if err := proc.Restart(); err != nil {
+		log.Errorf("Stop error: %v", err)
 		return err
 	}
 
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Stop.WaitTaskCompletion error: %v", err)
-		return err
-	}
-
-	d.IPAddress, err = d.GetIP()
-	return err
+	return nil
 }
 
 func (d *Driver) Remove() error {
 	log.Info("Remove() running")
 
-	vdcClient := NewVCloudClient(d)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
-	errBuild := vdcClient.buildInstance(d)
+	errBuild := vcdClient.BuildInstance()
 	if errBuild != nil {
 		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
 		return errBuild
 	}
 
-	log.Info("Remove.VCloudClient Set up VApp before running")
+	log.Info("Remove.VCloudClient create processor")
 
-	vApp, err := vdcClient.getVDCApp(d)
-	if err != nil {
-		log.Errorf("Remove.getVDCApp error: %v", err)
-		return err
+	// creates Processor
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
 	}
 
-	if d.EdgeGateway != "" && d.PublicIP != "" {
-		if d.VdcEdgeGateway != "" {
-			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetVDCByName error: %v", err)
-				return err
-			}
-			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
-				return err
-			}
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
 
-			log.Infof("Removing NAT and Firewall Rules on %s...", d.EdgeGateway)
-
-			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, d.PublicIP)
-			if err != nil {
-				return err
-			}
-			if err = task.WaitTaskCompletion(); err != nil {
-				return err
-			}
-		} else {
-			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
-			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
-
-			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
-			if err != nil {
-				return err
-			}
-
-			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete dnat error: %v", errDel)
-				return err
-			}
-
-			snat, err := edge.GetNatRuleByName(d.MachineName + "_snat")
-			if err != nil {
-				return err
-			}
-			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete snat error: %v", errDel)
-				return err
-			}
-		}
-	}
-
-	status, err := vApp.GetStatus()
-	if err != nil {
-		log.Errorf("Remove.GetStatus error: %v", err)
-		return err
-	}
-
-	if status == "POWERED_ON" {
-		// If it's powered on, power it off before deleting
-		log.Info("Remove() power it off %s...", d.MachineName)
-		task, err := vApp.PowerOff()
-		if err != nil {
-			log.Errorf("Remove.PowerOff error: %v", err)
-			return err
-		}
-		if err = task.WaitTaskCompletion(); err != nil {
-			log.Errorf("Remove.WaitTaskCompletion error: %v", err)
-			return err
-		}
-	}
-
-	log.Debugf("Remove() Undeploying %s", d.MachineName)
-	task, err := vApp.Undeploy()
-	if err != nil {
-		log.Errorf("Remove.Undeploy error: %v", err)
-		return err
-	}
-
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
-		return err
-	}
-
-	log.Infof("Remove() Deleting %s", d.MachineName)
-
-	task, err = vApp.Delete()
-	if err != nil {
-		log.Errorf("Remove.Delete error: %v", err)
-		return err
-	}
-
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+	if err := proc.Remove(); err != nil {
+		log.Errorf("Remove error: %v", err)
 		return err
 	}
 
@@ -822,24 +594,33 @@ func (d *Driver) Remove() error {
 func (d *Driver) Kill() error {
 	log.Info("Kill() running")
 
-	vdcClient := NewVCloudClient(d)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
-	log.Info("Stop.VCloudClient.getVDCApp")
-
-	vApp, errVdc := vdcClient.getVDCApp(d)
-	if errVdc != nil {
-		log.Errorf("Stop.getVDC error: %v", errVdc)
-		return errVdc
+	errBuild := vcdClient.BuildInstance()
+	if errBuild != nil {
+		log.Errorf("Kill.buildInstance vdc error: %v", errBuild)
+		return errBuild
 	}
 
-	task, errTask := vApp.PowerOff()
-	if errTask != nil {
-		log.Errorf("Stop.PowerOff error: %v", errTask)
-		return errTask
+	log.Info("Stop.VCloudClient create processor")
+
+	// creates Processor
+	confProcessor := processor.VAppProcessorConfig{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
 	}
 
-	if err := task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Stop.WaitTaskCompletion error: %v", err)
+	proc := processor.NewVAppProcessor(vcdClient, confProcessor)
+
+	if err := proc.Kill(); err != nil {
+		log.Errorf("Kill error: %v", err)
 		return err
 	}
 
@@ -861,227 +642,4 @@ func (d *Driver) createSSHKey() (string, error) {
 	}
 
 	return string(publicKey), nil
-}
-
-func getRancherCloudInit(s string) string {
-	out := RancherCloudInit{}
-	err := yaml.Unmarshal([]byte(s), &out)
-	if err != nil {
-		log.Debugf("Unmarshal: %v", err)
-	}
-
-	for _, entry := range out.WriteFiles {
-		return entry.Content
-	}
-
-	return ""
-}
-
-func (d *Driver) postSettingsVM(vm *govcd.VM) error {
-	var numCPUsPtr *int
-	numCPUsPtr = &d.CPUCount
-
-	vmSpecs := *vm.VM.VmSpecSection
-
-	vmSpecs.NumCpus = numCPUsPtr
-	vmSpecs.NumCoresPerSocket = numCPUsPtr
-	vmSpecs.MemoryResourceMb.Configured = int64(d.MemorySize)
-	vmSpecs.DiskSection.DiskSettings[0].SizeMb = int64(d.DiskSize)
-
-	_, errUpd := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
-	if errUpd != nil {
-		log.Errorf("Create.UpdateVmSpecSection error: %v", errUpd)
-		return errUpd
-	}
-
-	guestSection, err := d.prepareCustomSectionForVM(*vm.VM.GuestCustomizationSection)
-	if err != nil {
-		log.Errorf("Create.prepareCustomSectionForVM error: %v", err)
-		return err
-	}
-
-	_, errSet := vm.SetGuestCustomizationSection(&guestSection)
-	if errSet != nil {
-		log.Errorf("Create.SetGuestCustomizationSection error: %v", errSet)
-		return errSet
-	}
-
-	return nil
-}
-
-func (d *Driver) prepareCustomSectionForVM(vmScript types.GuestCustomizationSection) (types.GuestCustomizationSection, error) {
-	sshKey, errSsh := d.createSSHKey()
-	if errSsh != nil {
-		log.Errorf("prepareCustomSection.createSSHKey error: %s", errSsh)
-		return types.GuestCustomizationSection{}, errSsh
-	}
-
-	var (
-		section      types.GuestCustomizationSection
-		adminEnabled bool
-		scriptSh     string
-	)
-
-	section = vmScript
-
-	section.ComputerName = d.MachineName
-	section.AdminPasswordEnabled = &adminEnabled
-
-	scriptSh = d.InitData + "\n"
-	// append ssh user to script
-	scriptSh += "\nuseradd -m -d /home/" + d.SSHUser + " -s /bin/bash " + d.SSHUser + "\nmkdir -p /home/" + d.SSHUser + "/.ssh\nchmod 700 /home/" + d.SSHUser + "/.ssh\ntouch /home/" + d.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + d.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + d.SSHUser + "\necho \"" + strings.TrimSpace(sshKey) + "\" > /home/" + d.SSHUser + "/.ssh/authorized_keys\necho \"" + d.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + d.SSHUser + ":" + d.SSHUser + " -R /home/" + d.SSHUser + "\n"
-
-	if d.Rke2 {
-		// if rke2
-		readUserData, errRead := os.ReadFile(d.UserData)
-		if errRead != nil {
-			log.Errorf("prepareCustomSection.ReadFile error: %s", errRead)
-			return types.GuestCustomizationSection{}, errRead
-		}
-
-		cloudInit := getRancherCloudInit(string(readUserData))
-
-		log.Infof("prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", d.Rke2)
-
-		// generate install.sh
-		cloudInitWithQuotes := strings.Join([]string{"'", cloudInit, "'"}, "")
-		scriptSh += "mkdir -p /usr/local/custom_script\n"
-		scriptSh += "echo " + cloudInitWithQuotes + " | base64 -d | gunzip | sudo tee /usr/local/custom_script/install.sh\n"
-		scriptSh += "nohup sh /usr/local/custom_script/install.sh > /dev/null 2>&1 &\n"
-		scriptSh += "exit 0\n"
-	} else {
-		// if rke1
-		scriptSh += d.UserData
-	}
-
-	log.Infof("prepareCustomSection generate script ----> %s", scriptSh)
-
-	section.CustomizationScript = scriptSh
-
-	return section, nil
-}
-
-func (d *Driver) removeIfError() error {
-	log.Info("Remove() running")
-
-	vdcClient := NewVCloudClient(d)
-
-	errBuild := vdcClient.buildInstance(d)
-	if errBuild != nil {
-		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
-		return errBuild
-	}
-
-	log.Info("Remove.VCloudClient Set up VApp before running")
-
-	vApp, err := vdcClient.getVDCApp(d)
-	if err != nil {
-		log.Errorf("Remove.getVDCApp error: %v", err)
-		return err
-	}
-
-	if d.EdgeGateway != "" && d.PublicIP != "" {
-		if d.VdcEdgeGateway != "" {
-			vdcGateway, err := vdcClient.org.GetVDCByName(d.VdcEdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetVDCByName error: %v", err)
-				return err
-			}
-			edge, err := vdcGateway.GetEdgeGatewayByName(d.EdgeGateway, true)
-			if err != nil {
-				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
-				return err
-			}
-
-			log.Infof("Removing NAT and Firewall Rules on %s...", d.EdgeGateway)
-
-			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, d.PublicIP)
-			if err != nil {
-				return err
-			}
-			if err = task.WaitTaskCompletion(); err != nil {
-				return err
-			}
-		} else {
-			adminOrg, err := vdcClient.client.GetAdminOrgByName(d.Org)
-			edge, err := adminOrg.GetNsxtEdgeGatewayByName(d.EdgeGateway)
-
-			dnat, err := edge.GetNatRuleByName(d.MachineName + "_dnat")
-			if err != nil {
-				return err
-			}
-
-			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete dnat error: %v", errDel)
-				return err
-			}
-
-			snat, err := edge.GetNatRuleByName(d.MachineName + "_snat")
-			if err != nil {
-				return err
-			}
-			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete snat error: %v", errDel)
-				return err
-			}
-		}
-	}
-
-	for {
-		status, err := vApp.GetStatus()
-		if err != nil {
-			log.Errorf("Remove.GetStatus error: %v", err)
-			return err
-		}
-
-		if status == "UNRESOLVED" {
-			log.Infof("Remove.Unresolved waiting for %s...", d.MachineName)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if status != "POWERED_OFF" {
-			log.Infof("Remove machine :%s status is %s. Power it off", d.MachineName, status)
-			task, err := vApp.PowerOff()
-
-			if err != nil {
-				log.Errorf("Remove.PowerOff error: %v", err)
-				return err
-			}
-
-			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("Remove.PowerOff.WaitTaskCompletion error: %v", err)
-				return err
-			}
-			break
-		} else {
-			log.Infof("Remove.Powered Off %s...", d.MachineName)
-			break
-		}
-	}
-
-	log.Infof("Remove.Delete %s...", d.MachineName)
-	task, err := vApp.Delete()
-	if err != nil {
-		return err
-	}
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.Undeploy.WaitTaskCompletion after undeploy error: %v", err)
-		return err
-	}
-
-	log.Infof("Remove.Deleting %s...", d.MachineName)
-
-	return nil
-}
-
-func (d *Driver) deleteMachineError(err error) error {
-	log.Infof("deleteMachine reason ----> %v", err)
-
-	if errRemove := d.removeIfError(); err != nil {
-		log.Errorf("deleteMachine %v", errRemove)
-		return errRemove
-	}
-
-	return err
 }

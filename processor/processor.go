@@ -1,8 +1,7 @@
-package vmwarevcloud
+package processor
 
 import (
 	"github.com/vmware/go-vcloud-director/v2/govcd"
-	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
 
 // Processor represents an interface to work with VMWare vCloud Director
@@ -14,8 +13,12 @@ import (
 // VAppProcessor creates Vapp and VM in VApp with same name
 
 type Processor interface {
-	CreateVAppWithVM(vdcClient *VCloudClient) (*govcd.VApp, *govcd.VM, error)
-	CleanState(vdcClient *VCloudClient) error
+	Create(customCfg interface{}) (*govcd.VApp, error)
+	Remove() error
+	Stop() error
+	Kill() error
+	CleanState() error
 	vmPostSettings(vm *govcd.VM) error
-	prepareCustomSectionForVM(vmScript types.GuestCustomizationSection) (types.GuestCustomizationSection, error)
+	Restart() error
+	Start() error
 }
