@@ -433,22 +433,6 @@ func (d *Driver) Create() error {
 func (d *Driver) Start() error {
 	log.Info("Start() running")
 
-	clientConfig := client.ConfigClient{
-		MachineName:             d.MachineName,
-		UserName:                d.UserName,
-		UserPassword:            d.UserPassword,
-		Org:                     d.Org,
-		VDC:                     d.VDC,
-		OrgVDCNet:               d.OrgVDCNet,
-		Catalog:                 d.Catalog,
-		CatalogItem:             d.CatalogItem,
-		StorProfile:             d.StorProfile,
-		AdapterType:             d.AdapterType,
-		IPAddressAllocationMode: d.IPAddressAllocationMode,
-		Url:                     d.Url,
-		Insecure:                d.Insecure,
-	}
-
 	confProcessor := processor.VAppProcessorConfig{
 		VAppName:       d.MachineName,
 		CPUCount:       d.CPUCount,
@@ -462,7 +446,7 @@ func (d *Driver) Start() error {
 	}
 
 	// check vcd platform state
-	vcdClient := client.NewVCloudClient(clientConfig)
+	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
 
 	errBuild := vcdClient.BuildInstance()
 	if errBuild != nil {

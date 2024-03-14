@@ -487,11 +487,12 @@ func prepareCustomSectionForVM(
 }
 
 func (p *VAppProcessor) Remove() error {
+	MachineName
 	log.Infof("VAppProcessor.Remove %s...", p.VAppName)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
 	if err != nil {
-		log.Errorf("Remove.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Remove.GetVAppByName error: %v", err)
 		return err
 	}
 
@@ -499,16 +500,16 @@ func (p *VAppProcessor) Remove() error {
 		if p.VdcEdgeGateway != "" {
 			vdcGateway, err := p.vcdClient.Org.GetVDCByName(p.VdcEdgeGateway, true)
 			if err != nil {
-				log.Errorf("Remove.GetVDCByName error: %v", err)
+				log.Errorf("VAppProcessor.Remove.GetVDCByName error: %v", err)
 				return err
 			}
 			edge, err := vdcGateway.GetEdgeGatewayByName(p.EdgeGateway, true)
 			if err != nil {
-				log.Errorf("Remove.GetEdgeGatewayByName error: %v", err)
+				log.Errorf("VAppProcessor.Remove.GetEdgeGatewayByName error: %v", err)
 				return err
 			}
 
-			log.Infof("Removing NAT and Firewall Rules on %s...", p.EdgeGateway)
+			log.Infof("VAppProcessor.Removing NAT and Firewall Rules on %s...", p.EdgeGateway)
 
 			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, p.PublicIP)
 			if err != nil {
@@ -527,8 +528,8 @@ func (p *VAppProcessor) Remove() error {
 			}
 
 			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete dnat error: %v", errDel)
-				return err
+				log.Errorf("VAppProcessor.Remove.Delete dnat error: %v", errDel)
+				return errMachineName
 			}
 
 			snat, err := edge.GetNatRuleByName(p.VAppName + "_snat")
@@ -536,7 +537,7 @@ func (p *VAppProcessor) Remove() error {
 				return err
 			}
 			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("Remove.Delete snat error: %v", errDel)
+				log.Errorf("VAppProcessor.Remove.Delete snat error: %v", errDel)
 				return err
 			}
 		}
@@ -544,46 +545,46 @@ func (p *VAppProcessor) Remove() error {
 
 	status, err := vApp.GetStatus()
 	if err != nil {
-		log.Errorf("Remove.GetStatus error: %v", err)
+		log.Errorf("VAppProcessor.Remove.GetStatus error: %v", err)
 		return err
 	}
 
 	if status == "POWERED_ON" {
 		// If it's powered on, power it off before deleting
-		log.Info("Remove() power it off %s...", p.VAppName)
+		log.Info("VAppProcessor.Remove() power it off %s...", p.VAppName)
 		task, err := vApp.PowerOff()
 		if err != nil {
-			log.Errorf("Remove.PowerOff error: %v", err)
+			log.Errorf("VAppProcessor.Remove.PowerOff error: %v", err)
 			return err
 		}
 		if err = task.WaitTaskCompletion(); err != nil {
-			log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+			log.Errorf("VAppProcessor.Remove.WaitTaskCompletion error: %v", err)
 			return err
 		}
 	}
 
-	log.Debugf("Remove() Undeploying %s", p.VAppName)
+	log.Debugf("VAppProcessor.Remove() Undeploying %s", p.VAppName)
 	task, err := vApp.Undeploy()
 	if err != nil {
-		log.Errorf("Remove.Undeploy error: %v", err)
+		log.Errorf("VAppProcessor.Remove.Undeploy error: %v", err)
 		return err
 	}
 
 	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+		log.Errorf("VAppProcessor.Remove.WaitTaskCompletion error: %v", err)
 		return err
 	}
 
-	log.Infof("Remove() Deleting %s", p.VAppName)
+	log.Infof("VAppProcessor.Remove() Deleting %s", p.VAppName)
 
 	task, err = vApp.Delete()
 	if err != nil {
-		log.Errorf("Remove.Delete error: %v", err)
+		log.Errorf("VAppProcessor.Remove.Delete error: %v", err)
 		return err
 	}
 
 	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.WaitTaskCompletion error: %v", err)
+		log.Errorf("VAppProcessor.Remove.WaitTaskCompletion error: %v", err)
 		return err
 	}
 
@@ -595,18 +596,18 @@ func (p *VAppProcessor) Stop() error {
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
 	if err != nil {
-		log.Errorf("Stop.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Stop.getVDCApp error: %v", err)
 		return err
 	}
 
 	task, errTask := vApp.Shutdown()
 	if errTask != nil {
-		log.Errorf("Stop.PowerOff error: %v", errTask)
+		log.Errorf("VAppProcessor.Stop.PowerOff error: %v", errTask)
 		return errTask
 	}
 
 	if errWait := task.WaitTaskCompletion(); errTask != nil {
-		log.Errorf("Stop.WaitTaskCompletion error: %v", errWait)
+		log.Errorf("VAppProcessor.Stop.WaitTaskCompletion error: %v", errWait)
 		return errWait
 	}
 
@@ -616,18 +617,18 @@ func (p *VAppProcessor) Stop() error {
 func (p *VAppProcessor) Kill() error {
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
 	if err != nil {
-		log.Errorf("Stop.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Kill.GetVAppByName error: %v", err)
 		return err
 	}
 
 	task, errTask := vApp.PowerOff()
 	if errTask != nil {
-		log.Errorf("Stop.PowerOff error: %v", errTask)
+		log.Errorf("VAppProcessor.Kill.PowerOff error: %v", errTask)
 		return errTask
 	}
 
 	if errWait := task.WaitTaskCompletion(); errWait != nil {
-		log.Errorf("Stop.WaitTaskCompletion error: %v", errWait)
+		log.Errorf("VAppProcessor.Kill.WaitTaskCompletion error: %v", errWait)
 		return errWait
 	}
 
@@ -635,22 +636,22 @@ func (p *VAppProcessor) Kill() error {
 }
 
 func (p *VAppProcessor) Restart() error {
-	log.Info("Restart() running")
+	log.Info("VAppProcessor.Restart() running")
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
 	if err != nil {
-		log.Errorf("Stop.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Restart.GetVAppByName error: %v", err)
 		return err
 	}
 
 	task, err := vApp.Reset()
 	if err != nil {
-		log.Errorf("Restart.Reset error: %v", err)
+		log.Errorf("VAppProcessor.Restart.Reset error: %v", err)
 		return err
 	}
 
 	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Restart.WaitTaskCompletion error: %v", err)
+		log.Errorf("VAppProcessor.Restart.WaitTaskCompletion error: %v", err)
 		return err
 	}
 
@@ -660,28 +661,29 @@ func (p *VAppProcessor) Restart() error {
 func (p *VAppProcessor) Start() error {
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
 	if err != nil {
-		log.Errorf("Stop.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Start.GetVAppByName error: %v", err)
 		return err
 	}
 
 	status, err := vApp.GetStatus()
 	if err != nil {
-		log.Errorf("Start.getVcdStatus.GetStatus error: %v", vApp)
+		log.Errorf("VAppProcessor.Start.getVcdStatus.GetStatus error: %v", vApp)
 		return err
 	}
 
-	log.Infof("Start.GetStatus current status :%s", status)
+	log.Infof("VAppProcessor.Start.GetStatus current status :%s", status)
 
 	if status == "POWERED_OFF" {
-		log.Info("Start.VCloudClient Start machine %s app id %d", p.VAppName, p.VAppID)
+		log.Info("VAppProcessor.Start.VCloudClient Start machine %s app id %d", p.VAppName, p.VAppID)
 		task, errOn := vApp.PowerOn()
 		if errOn != nil {
-			log.Errorf("Start.PowerOn error: %v", errOn)
+			MachineName
+			log.Errorf("VAppProcessor.Start.PowerOn error: %v", errOn)
 			return errOn
 		}
 
 		if errTask := task.WaitTaskCompletion(); errTask != nil {
-			log.Errorf("Start.WaitTaskCompletion error: %v", errTask)
+			log.Errorf("VAppProcessor.Start.WaitTaskCompletion error: %v", errTask)
 			return errTask
 		}
 	}
