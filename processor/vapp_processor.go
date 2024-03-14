@@ -487,7 +487,6 @@ func prepareCustomSectionForVM(
 }
 
 func (p *VAppProcessor) Remove() error {
-	MachineName
 	log.Infof("VAppProcessor.Remove %s...", p.VAppName)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.VAppName, true)
@@ -529,7 +528,7 @@ func (p *VAppProcessor) Remove() error {
 
 			if errDel := dnat.Delete(); errDel != nil {
 				log.Errorf("VAppProcessor.Remove.Delete dnat error: %v", errDel)
-				return errMachineName
+				return errDel
 			}
 
 			snat, err := edge.GetNatRuleByName(p.VAppName + "_snat")
@@ -677,7 +676,6 @@ func (p *VAppProcessor) Start() error {
 		log.Info("VAppProcessor.Start.VCloudClient Start machine %s app id %d", p.VAppName, p.VAppID)
 		task, errOn := vApp.PowerOn()
 		if errOn != nil {
-			MachineName
 			log.Errorf("VAppProcessor.Start.PowerOn error: %v", errOn)
 			return errOn
 		}
