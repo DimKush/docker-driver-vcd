@@ -405,61 +405,6 @@ func (p *VAppProcessor) CleanState() error {
 	return nil
 }
 
-func prepareCustomSectionForVM(
-	vmScript types.GuestCustomizationSection,
-	customCfg interface{},
-) (types.GuestCustomizationSection, error) {
-
-	cfg, ok := customCfg.(*CustomScriptConfigVAppProcessor)
-	if !ok {
-		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
-	}
-
-	var (
-		section      types.GuestCustomizationSection
-		adminEnabled bool
-		scriptSh     string
-	)
-
-	section = vmScript
-
-	section.ComputerName = cfg.VAppName
-	section.AdminPasswordEnabled = &adminEnabled
-
-	scriptSh = cfg.InitData + "\n"
-	// append ssh user to script
-	scriptSh += "\nuseradd -m -d /home/" + cfg.SSHUser + " -s /bin/bash " + cfg.SSHUser + "\nmkdir -p /home/" + cfg.SSHUser + "/.ssh\nchmod 700 /home/" + cfg.SSHUser + "/.ssh\ntouch /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + cfg.SSHUser + "\necho \"" + strings.TrimSpace(cfg.SSHKey) + "\" > /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + cfg.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + cfg.SSHUser + ":" + cfg.SSHUser + " -R /home/" + cfg.SSHUser + "\n"
-
-	if cfg.Rke2 {
-		// if rke2
-		readUserData, errRead := os.ReadFile(cfg.UserData)
-		if errRead != nil {
-			log.Errorf("prepareCustomSection.ReadFile error: %s", errRead)
-			return types.GuestCustomizationSection{}, errRead
-		}
-
-		cloudInit := rancher.GetCloudInitRancher(string(readUserData))
-
-		log.Infof("prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", cfg.Rke2)
-
-		// generate install.sh
-		cloudInitWithQuotes := strings.Join([]string{"'", cloudInit, "'"}, "")
-		scriptSh += "mkdir -p /usr/local/custom_script\n"
-		scriptSh += "echo " + cloudInitWithQuotes + " | base64 -d | gunzip | sudo tee /usr/local/custom_script/install.sh\n"
-		scriptSh += "nohup sh /usr/local/custom_script/install.sh > /dev/null 2>&1 &\n"
-		scriptSh += "exit 0\n"
-	} else {
-		// if rke1
-		scriptSh += cfg.UserData
-	}
-
-	log.Infof("prepareCustomSection generate script ----> %s", scriptSh)
-
-	section.CustomizationScript = scriptSh
-
-	return section, nil
-}
-
 func (p *VAppProcessor) Remove() error {
 	log.Infof("VAppProcessor.Remove %s...", p.cfg.VAppName)
 
@@ -661,4 +606,59 @@ func (p *VAppProcessor) Start() error {
 	}
 
 	return nil
+}
+
+func prepareCustomSectionForVM(
+	vmScript types.GuestCustomizationSection,
+	customCfg interface{},
+) (types.GuestCustomizationSection, error) {
+
+	cfg, ok := customCfg.(*CustomScriptConfigVAppProcessor)
+	if !ok {
+		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
+	}
+
+	var (
+		section      types.GuestCustomizationSection
+		adminEnabled bool
+		scriptSh     string
+	)
+
+	section = vmScript
+
+	section.ComputerName = cfg.VAppName
+	section.AdminPasswordEnabled = &adminEnabled
+
+	scriptSh = cfg.InitData + "\n"
+	// append ssh user to script
+	scriptSh += "\nuseradd -m -d /home/" + cfg.SSHUser + " -s /bin/bash " + cfg.SSHUser + "\nmkdir -p /home/" + cfg.SSHUser + "/.ssh\nchmod 700 /home/" + cfg.SSHUser + "/.ssh\ntouch /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + cfg.SSHUser + "\necho \"" + strings.TrimSpace(cfg.SSHKey) + "\" > /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + cfg.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + cfg.SSHUser + ":" + cfg.SSHUser + " -R /home/" + cfg.SSHUser + "\n"
+
+	if cfg.Rke2 {
+		// if rke2
+		readUserData, errRead := os.ReadFile(cfg.UserData)
+		if errRead != nil {
+			log.Errorf("prepareCustomSection.ReadFile error: %s", errRead)
+			return types.GuestCustomizationSection{}, errRead
+		}
+
+		cloudInit := rancher.GetCloudInitRancher(string(readUserData))
+
+		log.Infof("prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", cfg.Rke2)
+
+		// generate install.sh
+		cloudInitWithQuotes := strings.Join([]string{"'", cloudInit, "'"}, "")
+		scriptSh += "mkdir -p /usr/local/custom_script\n"
+		scriptSh += "echo " + cloudInitWithQuotes + " | base64 -d | gunzip | sudo tee /usr/local/custom_script/install.sh\n"
+		scriptSh += "nohup sh /usr/local/custom_script/install.sh > /dev/null 2>&1 &\n"
+		scriptSh += "exit 0\n"
+	} else {
+		// if rke1
+		scriptSh += cfg.UserData
+	}
+
+	log.Infof("prepareCustomSection generate script ----> %s", scriptSh)
+
+	section.CustomizationScript = scriptSh
+
+	return section, nil
 }
