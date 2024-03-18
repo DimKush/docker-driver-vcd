@@ -46,6 +46,7 @@ type Driver struct {
 	Rke2                    bool
 	VCDConfigClient         client.ConfigClient
 	processorConfig         processor.ConfigProcessor
+	VAppName                string
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
@@ -260,6 +261,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.CPUCount = flags.Int("vcd-cpu-count")
 	d.MemorySize = flags.Int("vcd-memory-size")
 	d.DiskSize = flags.Int("vcd-disk-size")
+	d.VAppName = flags.String("vapp-name")
 	d.PrivateIP = d.PublicIP
 
 	clientConfig := client.ConfigClient{
@@ -280,8 +282,14 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	d.VCDConfigClient = clientConfig
 
+	// if flag vapp-name is empty
+	if d.VAppName == "" {
+		d.VAppName = defaultVAppName
+	}
+
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -373,18 +381,19 @@ func (d *Driver) Create() error {
 	log.Info("Create().VCloudClient Set up VApp before running")
 
 	// custom config for script
-	confCustom := processor.CustomScriptConfigVAppProcessor{
-		VAppName: d.MachineName,
-		SSHKey:   sshKey,
-		SSHUser:  d.SSHUser,
-		UserData: d.UserData,
-		InitData: d.InitData,
-		Rke2:     d.Rke2,
+	confCustom := processor.CustomScriptConfigVMProcessor{
+		VAppName:    d.VAppName,
+		MachineName: d.MachineName,
+		SSHKey:      sshKey,
+		SSHUser:     d.SSHUser,
+		UserData:    d.UserData,
+		InitData:    d.InitData,
+		Rke2:        d.Rke2,
 	}
 
 	// creates Processor
 
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 
 	vApp, errVApp := proc.Create(confCustom)
 	if errVApp != nil {
@@ -392,7 +401,13 @@ func (d *Driver) Create() error {
 		return errVApp
 	}
 
-	task, errPowerOn := vApp.PowerOn()
+	virtualMachine, err := vApp.GetVMByName(d.MachineName, true)
+	if err != nil {
+		log.Errorf("Create.GetVMByName error: %v", err)
+		return err
+	}
+
+	task, errPowerOn := virtualMachine.PowerOn()
 	if errPowerOn != nil {
 		log.Errorf("Create.PowerOn error: %v", errPowerOn)
 		return errPowerOn
@@ -402,8 +417,6 @@ func (d *Driver) Create() error {
 		log.Errorf("Create.PowerOn.WaitTaskCompletion error: %v", errTask)
 		return errTask
 	}
-
-	// check status of VM after task powered on
 
 	for {
 		vm, errVM := vApp.GetVMByName(d.MachineName, true)
@@ -446,7 +459,7 @@ func (d *Driver) Start() error {
 		return errBuild
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 
 	if err := proc.Start(); err != nil {
 		log.Errorf("Kill error: %v", err)
@@ -477,7 +490,7 @@ func (d *Driver) Stop() error {
 	log.Info("Stop.VCloudClient.getVDCApp")
 
 	// creates Processor
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 	if err := proc.Stop(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -499,7 +512,7 @@ func (d *Driver) Restart() error {
 
 	log.Info("Restart.VCloudClient create new processor")
 	// creates Processor
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 	if err := proc.Restart(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -522,7 +535,7 @@ func (d *Driver) Remove() error {
 	log.Info("Remove.VCloudClient create processor")
 
 	// creates Processor
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 
 	if err := proc.Remove(); err != nil {
 		log.Errorf("Remove error: %v", err)
@@ -546,7 +559,7 @@ func (d *Driver) Kill() error {
 	log.Info("Stop.VCloudClient create processor")
 
 	// creates Processor
-	proc := processor.NewVAppProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
 
 	if err := proc.Kill(); err != nil {
 		log.Errorf("Kill error: %v", err)

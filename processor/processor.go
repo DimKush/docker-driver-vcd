@@ -8,6 +8,7 @@ import (
 // Use a special processor implementation to work with different cases
 //
 // VMProcessor - if you need to work with one vApp and create VM in this vApp (vapp-name flag)
+// If VApp doesn't exist, it will be created. If exists - VM will be added in this vApp
 //
 // VAppProcessor - if you need to work with one vApp and one VM in VApp (1 to 1). vapp-name is not taken into account.
 // VAppProcessor creates Vapp (if not exists) and VM in VApp with same name
@@ -25,6 +26,7 @@ type Processor interface {
 
 type ConfigProcessor struct {
 	VAppName       string
+	VMachineName   string
 	CPUCount       int
 	MemorySize     int64
 	DiskSize       int64

@@ -297,7 +297,6 @@ func (p *VAppProcessor) vmPostSettings(vm *govcd.VM) error {
 	}
 
 	return nil
-
 }
 
 func (p *VAppProcessor) CleanState() error {
