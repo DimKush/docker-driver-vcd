@@ -313,12 +313,12 @@ func (p *VAppProcessor) CleanState() error {
 		if p.cfg.VdcEdgeGateway != "" {
 			vdcGateway, err := p.vcdClient.Org.GetVDCByName(p.cfg.VdcEdgeGateway, true)
 			if err != nil {
-				log.Errorf("VAppProcessor.Remove.GetVDCByName error: %v", err)
+				log.Errorf("VAppProcessor.CleanState.GetVDCByName error: %v", err)
 				return err
 			}
 			edge, err := vdcGateway.GetEdgeGatewayByName(p.cfg.EdgeGateway, true)
 			if err != nil {
-				log.Errorf("VAppProcessor.Remove.GetEdgeGatewayByName error: %v", err)
+				log.Errorf("VAppProcessor.CleanState.GetEdgeGatewayByName error: %v", err)
 				return err
 			}
 
@@ -341,7 +341,7 @@ func (p *VAppProcessor) CleanState() error {
 			}
 
 			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("VAppProcessor.Remove.Delete dnat error: %v", errDel)
+				log.Errorf("VAppProcessor.CleanState.Delete dnat error: %v", errDel)
 				return err
 			}
 
@@ -350,7 +350,7 @@ func (p *VAppProcessor) CleanState() error {
 				return err
 			}
 			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("VAppProcessor.Remove.Delete snat error: %v", errDel)
+				log.Errorf("VAppProcessor.CleanState.Delete snat error: %v", errDel)
 				return err
 			}
 		}
@@ -359,37 +359,37 @@ func (p *VAppProcessor) CleanState() error {
 	for {
 		status, err := vApp.GetStatus()
 		if err != nil {
-			log.Errorf("VAppProcessor.Remove.GetStatus error: %v", err)
+			log.Errorf("VAppProcessor.CleanState.GetStatus error: %v", err)
 			return err
 		}
 
 		if status == "UNRESOLVED" {
-			log.Infof("VAppProcessor.Remove.Unresolved waiting for %s...", p.cfg.VAppName)
+			log.Infof("VAppProcessor.CleanState.Unresolved waiting for %s...", p.cfg.VAppName)
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		if status != "POWERED_OFF" {
-			log.Infof("VAppProcessor.Remove machine :%s status is %s. Power it off", p.cfg.VAppName, status)
+			log.Infof("VAppProcessor.CleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
 			task, err := vApp.PowerOff()
 
 			if err != nil {
-				log.Errorf("VAppProcessor.Remove.PowerOff error: %v", err)
+				log.Errorf("VAppProcessor.CleanState.PowerOff error: %v", err)
 				return err
 			}
 
 			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("VAppProcessor.Remove.PowerOff.WaitTaskCompletion error: %v", err)
+				log.Errorf("VAppProcessor.CleanState.PowerOff.WaitTaskCompletion error: %v", err)
 				return err
 			}
 			break
 		} else {
-			log.Infof("VAppProcessor.Remove.Powered Off %s...", p.cfg.VAppName)
+			log.Infof("VAppProcessor.CleanState.Powered Off %s...", p.cfg.VAppName)
 			break
 		}
 	}
 
-	log.Infof("VAppProcessor.Remove.Delete %s...", p.cfg.VAppName)
+	log.Infof("VAppProcessor.CleanState.Delete %s...", p.cfg.VAppName)
 	task, err := vApp.Delete()
 	if err != nil {
 		return err
@@ -406,7 +406,7 @@ func (p *VAppProcessor) CleanState() error {
 }
 
 func (p *VAppProcessor) Remove() error {
-	log.Infof("VAppProcessor.Remove %s...", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Remove vApp with name %s...", p.cfg.VAppName)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -414,8 +414,14 @@ func (p *VAppProcessor) Remove() error {
 		return err
 	}
 
+	log.Infof("VAppProcessor.Remove found vApp with name %s", p.cfg.VAppName)
+
 	if p.cfg.EdgeGateway != "" && p.cfg.PublicIP != "" {
+		log.Infof("VAppProcessor.Remove delete network connection for %s", p.cfg.VAppName)
+
 		if p.cfg.VdcEdgeGateway != "" {
+			log.Infof("VAppProcessor.Remove VdcEdgeGateway %s", p.cfg.EdgeGateway)
+
 			vdcGateway, err := p.vcdClient.Org.GetVDCByName(p.cfg.VdcEdgeGateway, true)
 			if err != nil {
 				log.Errorf("VAppProcessor.Remove.GetVDCByName error: %v", err)
@@ -437,6 +443,8 @@ func (p *VAppProcessor) Remove() error {
 				return err
 			}
 		} else {
+			log.Infof("VAppProcessor.Remove delete nat rules %s", p.cfg.VAppName)
+
 			adminOrg, err := p.vcdClient.Client.GetAdminOrgByName(p.cfg.Org)
 			edge, err := adminOrg.GetNsxtEdgeGatewayByName(p.cfg.EdgeGateway)
 
@@ -461,11 +469,15 @@ func (p *VAppProcessor) Remove() error {
 		}
 	}
 
+	log.Infof("VAppProcessor.Remove %s get vApp name", p.cfg.VAppName)
+
 	status, err := vApp.GetStatus()
 	if err != nil {
 		log.Errorf("VAppProcessor.Remove.GetStatus error: %v", err)
 		return err
 	}
+
+	log.Infof("VAppProcessor.Remove %s : status ", p.cfg.VAppName, status)
 
 	if status == "POWERED_ON" {
 		// If it's powered on, power it off before deleting
@@ -481,7 +493,8 @@ func (p *VAppProcessor) Remove() error {
 		}
 	}
 
-	log.Debugf("VAppProcessor.Remove() Undeploying %s", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Remove() Undeploying %s", p.cfg.VAppName)
+
 	task, err := vApp.Undeploy()
 	if err != nil {
 		log.Errorf("VAppProcessor.Remove.Undeploy error: %v", err)
@@ -613,7 +626,7 @@ func prepareCustomSectionForVM(
 	customCfg interface{},
 ) (types.GuestCustomizationSection, error) {
 
-	cfg, ok := customCfg.(*CustomScriptConfigVAppProcessor)
+	cfg, ok := customCfg.(CustomScriptConfigVAppProcessor)
 	if !ok {
 		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
 	}
