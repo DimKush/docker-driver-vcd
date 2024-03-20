@@ -406,7 +406,7 @@ func (p *VAppProcessor) CleanState() error {
 }
 
 func (p *VAppProcessor) Remove() error {
-	log.Infof("VAppProcessor.Remove vApp with name %s...", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Remove vApp with name %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
