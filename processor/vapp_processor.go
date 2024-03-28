@@ -34,12 +34,11 @@ func NewVAppProcessor(client *client.VCloudClient, cfg ConfigProcessor) Processo
 	return &VAppProcessor{
 		cfg:       cfg,
 		vcdClient: client,
-		//VAppID:    conf.VAppID,
 	}
 }
 
 func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
-	log.Info("VAppProcessor.Create()")
+	log.Infof("VAppProcessor.Create() running with config: %+v", p.cfg)
 
 	var err error
 
@@ -278,6 +277,8 @@ func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 // VMPostSettings - post settings for VM after VM was created (CPU, Disk, Memory, custom scripts, etc...)
 func (p *VAppProcessor) vmPostSettings(vm *govcd.VM) error {
+	log.Infof("vmPostSettings() running with custom config: %+v", p.cfg)
+
 	var numCPUsPtr *int
 
 	// config VM
@@ -301,7 +302,7 @@ func (p *VAppProcessor) vmPostSettings(vm *govcd.VM) error {
 }
 
 func (p *VAppProcessor) CleanState() error {
-	log.Info("VAppProcessor.CleanState() running")
+	log.Infof("VAppProcessor.CleanState() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -406,7 +407,7 @@ func (p *VAppProcessor) CleanState() error {
 }
 
 func (p *VAppProcessor) Remove() error {
-	log.Infof("VAppProcessor.Remove vApp with name %+v", p.cfg)
+	log.Infof("VAppProcessor.Remove() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -523,7 +524,7 @@ func (p *VAppProcessor) Remove() error {
 }
 
 func (p *VAppProcessor) Stop() error {
-	log.Infof("VAppProcessor.Stop %s...", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Stop() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -546,6 +547,8 @@ func (p *VAppProcessor) Stop() error {
 }
 
 func (p *VAppProcessor) Kill() error {
+	log.Infof("VAppProcessor.Kill() running with config: %+v", p.cfg)
+
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
 		log.Errorf("VAppProcessor.Kill.GetVAppByName error: %v", err)
@@ -567,7 +570,7 @@ func (p *VAppProcessor) Kill() error {
 }
 
 func (p *VAppProcessor) Restart() error {
-	log.Info("VAppProcessor.Restart() running")
+	log.Infof("VAppProcessor.Restart() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -590,6 +593,8 @@ func (p *VAppProcessor) Restart() error {
 }
 
 func (p *VAppProcessor) Start() error {
+	log.Infof("VAppProcessor.Start() running with config: %+v", p.cfg)
+
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
 		log.Errorf("VAppProcessor.Start.GetVAppByName error: %v", err)
@@ -625,11 +630,12 @@ func prepareCustomSectionForVM(
 	vmScript types.GuestCustomizationSection,
 	customCfg interface{},
 ) (types.GuestCustomizationSection, error) {
-
 	cfg, ok := customCfg.(CustomScriptConfigVAppProcessor)
 	if !ok {
 		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
 	}
+
+	log.Infof("prepareCustomSectionForVM() running with custom config: %+v", cfg)
 
 	var (
 		section      types.GuestCustomizationSection
