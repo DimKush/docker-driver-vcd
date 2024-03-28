@@ -170,14 +170,15 @@ func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 	// set custom configs if it's not empty
 	if customCfg != nil {
-		guestSection, errSection := prepareCustomSectionForVM(*virtualMachine.VM.GuestCustomizationSection, customCfg)
-		if errSection != nil {
-			return nil, fmt.Errorf("prepareCustomSectionForVM error: %w", errSection)
+		var guestSection types.GuestCustomizationSection
+		guestSection, err = p.prepareCustomSectionForVM(*virtualMachine.VM.GuestCustomizationSection, customCfg)
+		if err != nil {
+			return nil, fmt.Errorf("prepareCustomSectionForVM error: %w", err)
 		}
 
-		_, errSet := virtualMachine.SetGuestCustomizationSection(&guestSection)
-		if errSet != nil {
-			return nil, fmt.Errorf("SetGuestCustomizationSection error: %w", errSet)
+		_, err = virtualMachine.SetGuestCustomizationSection(&guestSection)
+		if err != nil {
+			return nil, fmt.Errorf("SetGuestCustomizationSection error: %w", err)
 		}
 	}
 
@@ -625,7 +626,7 @@ func (p *VAppProcessor) Start() error {
 	return nil
 }
 
-func prepareCustomSectionForVM(
+func (p *VAppProcessor) prepareCustomSectionForVM(
 	vmScript types.GuestCustomizationSection,
 	customCfg interface{},
 ) (types.GuestCustomizationSection, error) {

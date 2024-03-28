@@ -3,9 +3,12 @@ package processor
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/DimKush/docker-driver-vcd/client"
+	"github.com/DimKush/docker-driver-vcd/rancher"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
@@ -194,14 +197,16 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 	// set custom configs if it's not empty
 	if customCfg != nil {
-		guestSection, errSection := prepareCustomSectionForVM(*virtualMachine.VM.GuestCustomizationSection, customCfg)
-		if errSection != nil {
-			return nil, fmt.Errorf("prepareCustomSectionForVM error: %w", errSection)
+		var guestSection types.GuestCustomizationSection
+
+		guestSection, err = p.prepareCustomSectionForVM(*virtualMachine.VM.GuestCustomizationSection, customCfg)
+		if err != nil {
+			return nil, fmt.Errorf("prepareCustomSectionForVM error: %w", err)
 		}
 
-		_, errSet := virtualMachine.SetGuestCustomizationSection(&guestSection)
-		if errSet != nil {
-			return nil, fmt.Errorf("SetGuestCustomizationSection error: %w", errSet)
+		_, err = virtualMachine.SetGuestCustomizationSection(&guestSection)
+		if err != nil {
+			return nil, fmt.Errorf("SetGuestCustomizationSection error: %w", err)
 		}
 	}
 
@@ -610,4 +615,60 @@ func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
 	}
 
 	return nil
+}
+
+func (p *VMProcessor) prepareCustomSectionForVM(
+	vmScript types.GuestCustomizationSection,
+	customCfg interface{},
+) (types.GuestCustomizationSection, error) {
+	cfg, ok := customCfg.(CustomScriptConfigVAppProcessor)
+	if !ok {
+		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
+	}
+
+	log.Infof("prepareCustomSectionForVM() running with custom config: %+v", cfg)
+
+	var (
+		section      types.GuestCustomizationSection
+		adminEnabled bool
+		scriptSh     string
+	)
+
+	section = vmScript
+
+	section.ComputerName = cfg.VAppName
+	section.AdminPasswordEnabled = &adminEnabled
+
+	scriptSh = cfg.InitData + "\n"
+	// append ssh user to script
+	scriptSh += "\nuseradd -m -d /home/" + cfg.SSHUser + " -s /bin/bash " + cfg.SSHUser + "\nmkdir -p /home/" + cfg.SSHUser + "/.ssh\nchmod 700 /home/" + cfg.SSHUser + "/.ssh\ntouch /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + cfg.SSHUser + "\necho \"" + strings.TrimSpace(cfg.SSHKey) + "\" > /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + cfg.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + cfg.SSHUser + ":" + cfg.SSHUser + " -R /home/" + cfg.SSHUser + "\n"
+
+	if cfg.Rke2 {
+		// if rke2
+		readUserData, errRead := os.ReadFile(cfg.UserData)
+		if errRead != nil {
+			log.Errorf("prepareCustomSection.ReadFile error: %s", errRead)
+			return types.GuestCustomizationSection{}, errRead
+		}
+
+		cloudInit := rancher.GetCloudInitRancher(string(readUserData))
+
+		log.Infof("prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", cfg.Rke2)
+
+		// generate install.sh
+		cloudInitWithQuotes := strings.Join([]string{"'", cloudInit, "'"}, "")
+		scriptSh += "mkdir -p /usr/local/custom_script\n"
+		scriptSh += "echo " + cloudInitWithQuotes + " | base64 -d | gunzip | sudo tee /usr/local/custom_script/install.sh\n"
+		scriptSh += "nohup sh /usr/local/custom_script/install.sh > /dev/null 2>&1 &\n"
+		scriptSh += "exit 0\n"
+	} else {
+		// if rke1
+		scriptSh += cfg.UserData
+	}
+
+	log.Infof("prepareCustomSection generate script ----> %s", scriptSh)
+
+	section.CustomizationScript = scriptSh
+
+	return section, nil
 }
