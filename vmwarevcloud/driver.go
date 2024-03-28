@@ -404,7 +404,7 @@ func (d *Driver) Create() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 
 	vApp, errVApp := proc.Create(confCustom)
 	if errVApp != nil {
@@ -483,7 +483,7 @@ func (d *Driver) Start() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 
 	if err := proc.Start(); err != nil {
 		log.Errorf("Kill error: %v", err)
@@ -526,7 +526,7 @@ func (d *Driver) Stop() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 	if err := proc.Stop(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -561,7 +561,7 @@ func (d *Driver) Restart() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 	if err := proc.Restart(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -596,7 +596,7 @@ func (d *Driver) Remove() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 
 	if err := proc.Remove(); err != nil {
 		log.Errorf("Remove error: %v", err)
@@ -632,7 +632,7 @@ func (d *Driver) Kill() error {
 		VAppID:         d.VAppID,
 	}
 
-	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 	if err := proc.Kill(); err != nil {
 		log.Errorf("Kill error: %v", err)
 		return err
