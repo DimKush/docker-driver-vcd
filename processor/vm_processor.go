@@ -35,6 +35,8 @@ func NewVMProcessor(client *client.VCloudClient, cfg ConfigProcessor) Processor 
 }
 
 func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
+	log.Infof("VMProcessor.checkVAppExistsAndCreateIfNot() running with config: %+v", p.cfg)
+
 	vAppExist, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
 		if !errors.Is(err, govcd.ErrorEntityNotFound) {
@@ -95,6 +97,8 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 }
 
 func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
+	log.Infof("VMProcessor.Create() running with config: %+v", p.cfg)
+
 	vApp, errVApp := p.checkVAppExistsAndCreateIfNot()
 	if errVApp != nil {
 		log.Errorf("VMProcessor.Create().checkVAppExistsAndCreateIfNot error: %v", errVApp)
@@ -296,7 +300,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 }
 
 func (p *VMProcessor) Remove() error {
-	log.Infof("VMProcessor.Remove %s...", p.cfg.VAppName)
+	log.Infof("VMProcessor.Remove() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -356,7 +360,7 @@ func (p *VMProcessor) Remove() error {
 }
 
 func (p *VMProcessor) Stop() error {
-	log.Infof("VMProcessor.Stop %s...", p.cfg.VAppName)
+	log.Infof("VMProcessor.Stop() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -385,6 +389,8 @@ func (p *VMProcessor) Stop() error {
 }
 
 func (p *VMProcessor) Kill() error {
+	log.Infof("VMProcessor.Kill() running with config: %+v", p.cfg)
+
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
 		log.Errorf("VMProcessor.Kill.GetVAppByName error: %v", err)
@@ -418,7 +424,7 @@ func (p *VMProcessor) Kill() error {
 }
 
 func (p *VMProcessor) Restart() error {
-	log.Info("VMProcessor.Restart() running")
+	log.Infof("VMProcessor.Restart() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -483,6 +489,8 @@ func (p *VMProcessor) Restart() error {
 }
 
 func (p *VMProcessor) Start() error {
+	log.Infof("VMProcessor.Start() running with config: %+v", p.cfg)
+
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
 		log.Errorf("VMProcessor.Start.GetVAppByName error: %v", err)
@@ -521,7 +529,7 @@ func (p *VMProcessor) Start() error {
 }
 
 func (p *VMProcessor) CleanState() error {
-	log.Info("VMProcessor.CleanState() running")
+	log.Infof("VMProcessor.CleanState() running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -581,6 +589,8 @@ func (p *VMProcessor) CleanState() error {
 }
 
 func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
+	log.Infof("VMProcessor.vmPostSettings() running with custom config: %+v", p.cfg)
+
 	var numCPUsPtr *int
 
 	// config VM
