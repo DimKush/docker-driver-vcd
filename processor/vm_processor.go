@@ -621,7 +621,7 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 	vmScript types.GuestCustomizationSection,
 	customCfg interface{},
 ) (types.GuestCustomizationSection, error) {
-	cfg, ok := customCfg.(CustomScriptConfigVAppProcessor)
+	cfg, ok := customCfg.(CustomScriptConfigVMProcessor)
 	if !ok {
 		return types.GuestCustomizationSection{}, fmt.Errorf("invalid config type: %T", cfg)
 	}
