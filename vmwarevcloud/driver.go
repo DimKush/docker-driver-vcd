@@ -50,7 +50,7 @@ type Driver struct {
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
-	return &Driver{
+	driver := &Driver{
 		Catalog:                 defaultCatalog,
 		CatalogItem:             defaultCatalogItem,
 		CPUCount:                defaultCpus,
@@ -67,6 +67,26 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 			StorePath:   storePath,
 		},
 	}
+
+	clientConfig := client.ConfigClient{
+		MachineName:             driver.MachineName,
+		UserName:                driver.UserName,
+		UserPassword:            driver.UserPassword,
+		Org:                     driver.Org,
+		VDC:                     driver.VDC,
+		OrgVDCNet:               driver.OrgVDCNet,
+		Catalog:                 driver.Catalog,
+		CatalogItem:             driver.CatalogItem,
+		StorProfile:             driver.StorProfile,
+		AdapterType:             driver.AdapterType,
+		IPAddressAllocationMode: driver.IPAddressAllocationMode,
+		Url:                     driver.Url,
+		Insecure:                driver.Insecure,
+	}
+
+	driver.VCDConfigClient = clientConfig
+
+	return driver
 }
 
 // GetCreateFlags registers the flags this driver adds to
@@ -282,26 +302,6 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	d.VCDConfigClient = clientConfig
 
-	// if flag vapp-name is empty
-	if d.VAppName == "" {
-		d.VAppName = defaultVAppName
-	}
-
-	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
-		CPUCount:       d.CPUCount,
-		MemorySize:     int64(d.MemorySize),
-		DiskSize:       int64(d.DiskSize),
-		EdgeGateway:    d.EdgeGateway,
-		PublicIP:       d.PublicIP,
-		VdcEdgeGateway: d.VdcEdgeGateway,
-		Org:            d.Org,
-		VAppID:         d.VAppID,
-	}
-
-	d.processorConfig = processorConfig
-
 	return nil
 }
 
@@ -392,8 +392,19 @@ func (d *Driver) Create() error {
 	}
 
 	// creates Processor
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
 
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 
 	vApp, errVApp := proc.Create(confCustom)
 	if errVApp != nil {
@@ -459,7 +470,20 @@ func (d *Driver) Start() error {
 		return errBuild
 	}
 
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	// creates Processor
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 
 	if err := proc.Start(); err != nil {
 		log.Errorf("Kill error: %v", err)
@@ -490,7 +514,19 @@ func (d *Driver) Stop() error {
 	log.Info("Stop.VCloudClient.getVDCApp")
 
 	// creates Processor
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 	if err := proc.Stop(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -511,8 +547,21 @@ func (d *Driver) Restart() error {
 	}
 
 	log.Info("Restart.VCloudClient create new processor")
+
 	// creates Processor
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 	if err := proc.Restart(); err != nil {
 		log.Errorf("Stop error: %v", err)
 		return err
@@ -535,7 +584,19 @@ func (d *Driver) Remove() error {
 	log.Info("Remove.VCloudClient create processor")
 
 	// creates Processor
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
+
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 
 	if err := proc.Remove(); err != nil {
 		log.Errorf("Remove error: %v", err)
@@ -559,8 +620,19 @@ func (d *Driver) Kill() error {
 	log.Info("Stop.VCloudClient create processor")
 
 	// creates Processor
-	proc := processor.NewVMProcessor(vcdClient, d.processorConfig)
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.MachineName,
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
+	}
 
+	proc := processor.NewVAppProcessor(vcdClient, processorConfig)
 	if err := proc.Kill(); err != nil {
 		log.Errorf("Kill error: %v", err)
 		return err
