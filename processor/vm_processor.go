@@ -60,21 +60,21 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 	networks = append(networks, p.vcdClient.Network.OrgVDCNetwork)
 
 	// create a new vApp
-	vApp, err := p.vcdClient.VirtualDataCenter.CreateRawVApp(p.cfg.VAppName, "Container Host created with Docker Host by VAppProcessor")
+	vApp, err := p.vcdClient.VirtualDataCenter.CreateRawVApp(p.cfg.VAppName, "Container Host created with Docker Host by VMProcessor")
 	if err != nil {
-		log.Errorf("VAppProcessor.Create.checkVAppExistsAndCreateIfNot.VCloudClient.CreateRawVApp error: %v", err)
+		log.Errorf("VMProcessor.Create.checkVAppExistsAndCreateIfNot.VCloudClient.CreateRawVApp error: %v", err)
 		return nil, err
 	}
 
 	taskNet, err := vApp.AddRAWNetworkConfig(networks)
 	if err != nil {
-		log.Errorf("VAppProcessor.Create.checkVAppExistsAndCreateIfNot.AddRAWNetworkConfig error: %v", err)
+		log.Errorf("VMProcessor.Create.checkVAppExistsAndCreateIfNot.AddRAWNetworkConfig error: %v", err)
 		return nil, err
 	}
 
 	err = taskNet.WaitTaskCompletion()
 	if err != nil {
-		log.Errorf("VAppProcessor.checkVAppExistsAndCreateIfNot.WaitTaskCompletion p.vcdClient.virtualDataCenter.ComposeVApp error: %v", err)
+		log.Errorf("VMProcessor.checkVAppExistsAndCreateIfNot.WaitTaskCompletion p.vcdClient.virtualDataCenter.ComposeVApp error: %v", err)
 		return nil, err
 	}
 
@@ -82,11 +82,11 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 	for {
 		status, errStatus := vApp.GetStatus()
 		if errStatus != nil {
-			log.Errorf("VAppProcessor.Create.checkVAppExistsAndCreateIfNot.GetStatus error: %v", errStatus)
+			log.Errorf("VMProcessor.Create.checkVAppExistsAndCreateIfNot.GetStatus error: %v", errStatus)
 			return nil, err
 		}
 
-		log.Infof("VAppProcessor.Create.checkVAppExistsAndCreateIfNot.GetStatus status: %s", status)
+		log.Infof("VMProcessor.Create.checkVAppExistsAndCreateIfNot.GetStatus status: %s", status)
 		if status != "POWERED_ON" {
 			// wait until VApp will be ready
 			time.Sleep(time.Second * 2)
