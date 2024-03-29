@@ -325,23 +325,37 @@ func (p *VMProcessor) Remove() error {
 	}
 
 	// If it's powered on, power it off before deleting
-	log.Infof("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
-	task, errTask := virtualMachine.Undeploy()
-	if errTask != nil {
-		log.Errorf("VMProcessor.Remove.PowerOff error: %v", errTask)
-		return errTask
+	status, errStatus := virtualMachine.GetStatus()
+	if errStatus != nil {
+		log.Errorf("VMProcessor.Remove.GetStatus error: %v", errStatus)
+		return errStatus
 	}
 
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
-		return err
+	if status != "POWERED_OFF" {
+		// If it's powered on, power it off before deleting
+		log.Infof("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
+		task, errTask := virtualMachine.PowerOff()
+		if errTask != nil {
+			log.Errorf("VMProcessor.Remove.PowerOff error: %v", errTask)
+			return errTask
+		}
+
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
+			return err
+		}
 	}
 
 	log.Infof("VMProcessor.Remove() Deleting VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
 
-	err = virtualMachine.Delete()
+	task, err := virtualMachine.DeleteAsync()
 	if err != nil {
 		log.Errorf("VMProcessor.Remove.Delete error: %v", err)
+		return err
+	}
+
+	if err = task.WaitTaskCompletion(); err != nil {
+		log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
 		return err
 	}
 
