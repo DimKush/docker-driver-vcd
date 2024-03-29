@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"github.com/docker/machine/libmachine/state"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 )
 
@@ -22,6 +23,7 @@ type Processor interface {
 	vmPostSettings(vm *govcd.VM) error
 	Restart() error
 	Start() error
+	GetState() (state.State, error)
 }
 
 type ConfigProcessor struct {

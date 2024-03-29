@@ -10,6 +10,7 @@ import (
 	"github.com/DimKush/docker-driver-vcd/client"
 	"github.com/DimKush/docker-driver-vcd/rancher"
 	"github.com/docker/machine/libmachine/log"
+	"github.com/docker/machine/libmachine/state"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
@@ -624,6 +625,30 @@ func (p *VAppProcessor) Start() error {
 	}
 
 	return nil
+}
+
+func (p *VAppProcessor) GetState() (state.State, error) {
+	log.Infof("VAppProcessor.GetState() running with config: %+v", p.cfg)
+
+	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppID, true)
+	if errApp != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
+		return state.None, errApp
+	}
+
+	status, errStatus := vApp.GetStatus()
+	if errStatus != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errStatus)
+		return state.None, errStatus
+	}
+
+	switch status {
+	case "POWERED_ON":
+		return state.Running, nil
+	case "POWERED_OFF":
+		return state.Stopped, nil
+	}
+	return state.None, nil
 }
 
 func (p *VAppProcessor) prepareCustomSectionForVM(

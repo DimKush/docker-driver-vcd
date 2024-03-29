@@ -344,27 +344,23 @@ func (d *Driver) GetState() (state.State, error) {
 		return state.Error, errBuild
 	}
 
-	log.Info("GetState.VCloudClient Set up VApp before running")
-
-	vApp, errApp := vcdClient.VirtualDataCenter.GetVAppById(d.VAppID, true)
-	if errApp != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
-		return state.Error, errApp
+	// creates Processor
+	processorConfig := processor.ConfigProcessor{
+		VAppName:       d.VAppName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
+		CPUCount:       d.CPUCount,
+		MemorySize:     int64(d.MemorySize),
+		DiskSize:       int64(d.DiskSize),
+		EdgeGateway:    d.EdgeGateway,
+		PublicIP:       d.PublicIP,
+		VdcEdgeGateway: d.VdcEdgeGateway,
+		Org:            d.Org,
+		VAppID:         d.VAppID,
 	}
 
-	status, errStatus := vApp.GetStatus()
-	if errStatus != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errStatus)
-		return state.Error, errStatus
-	}
+	proc := processor.NewVMProcessor(vcdClient, processorConfig)
 
-	switch status {
-	case "POWERED_ON":
-		return state.Running, nil
-	case "POWERED_OFF":
-		return state.Stopped, nil
-	}
-	return state.None, nil
+	return proc.GetState()
 }
 
 func (d *Driver) Create() error {

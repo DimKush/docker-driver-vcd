@@ -10,6 +10,7 @@ import (
 	"github.com/DimKush/docker-driver-vcd/client"
 	"github.com/DimKush/docker-driver-vcd/rancher"
 	"github.com/docker/machine/libmachine/log"
+	"github.com/docker/machine/libmachine/state"
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
@@ -53,7 +54,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		return vAppExist, nil
 	}
 
-	log.Infof("VMProcessor.Create..checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
+	log.Infof("VMProcessor.Create.checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
 
 	// creates networks instances
 	networks := make([]*types.OrgVDCNetwork, 0)
@@ -321,35 +322,14 @@ func (p *VMProcessor) Remove() error {
 	if err != nil {
 		log.Errorf("VMProcessor.Remove.GetVMByName error: %v", err)
 		return err
-
 	}
 
-	status, err := virtualMachine.GetStatus()
-	if err != nil {
-		log.Errorf("VMProcessor.Remove.GetStatus error: %v", err)
-		return err
-	}
-
-	if status == "POWERED_ON" {
-		// If it's powered on, power it off before deleting
-		log.Infof("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
-		task, errTask := virtualMachine.PowerOff()
-		if errTask != nil {
-			log.Errorf("VMProcessor.Remove.PowerOff error: %v", errTask)
-			return errTask
-		}
-
-		if err = task.WaitTaskCompletion(); err != nil {
-			log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
-			return err
-		}
-	}
-
-	log.Infof("VMProcessor.Remove() Undeploying VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
-	task, err := virtualMachine.Undeploy()
-	if err != nil {
-		log.Errorf("VMProcessor.Remove.Undeploy error: %v", err)
-		return err
+	// If it's powered on, power it off before deleting
+	log.Infof("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
+	task, errTask := virtualMachine.Undeploy()
+	if errTask != nil {
+		log.Errorf("VMProcessor.Remove.PowerOff error: %v", errTask)
+		return errTask
 	}
 
 	if err = task.WaitTaskCompletion(); err != nil {
@@ -544,7 +524,6 @@ func (p *VMProcessor) CleanState() error {
 	if err != nil {
 		log.Errorf("VMProcessor.CleanState().GetVAppByName error: %v", err)
 		return err
-
 	}
 
 	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
@@ -619,6 +598,37 @@ func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
 	}
 
 	return nil
+}
+
+func (p *VMProcessor) GetState() (state.State, error) {
+	log.Infof("VMProcessor.GetState() running with config: %+v", p.cfg)
+
+	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppID, true)
+	if errApp != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
+		return state.None, errApp
+	}
+
+	vm, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	if err != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", err)
+		return state.None, err
+	}
+
+	status, errStatus := vm.GetStatus()
+	if errStatus != nil {
+		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errStatus)
+		return state.None, errStatus
+	}
+
+	switch status {
+	case "POWERED_ON":
+		return state.Running, nil
+	case "POWERED_OFF":
+		return state.Stopped, nil
+	}
+
+	return state.None, nil
 }
 
 func (p *VMProcessor) prepareCustomSectionForVM(
