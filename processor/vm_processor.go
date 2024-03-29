@@ -134,7 +134,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	if vmExists != nil {
-		return nil, fmt.Errorf("VMProcessor.Create().GetVMByName VM %s already exists", p.cfg.VMachineName)
+		return nil, fmt.Errorf("VMProcessor.Create().GetVMByName VM %s already exists in vApp: %s", p.cfg.VMachineName, p.cfg.VAppName)
 	}
 
 	// create a new VM in vApp
@@ -174,7 +174,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 		if vm.VM.VmSpecSection != nil {
 			var status string
-			status, err = vApp.GetStatus()
+			status, err = vm.GetStatus()
 			if err != nil {
 				log.Errorf("VMProcessor.Create.GetStatus error: %v", err)
 				return nil, err
