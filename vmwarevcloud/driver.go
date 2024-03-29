@@ -285,7 +285,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.PrivateIP = d.PublicIP
 
 	clientConfig := client.ConfigClient{
-		MachineName:             d.MachineName,
+		MachineName:             d.BaseDriver.GetMachineName(),
 		UserName:                d.UserName,
 		UserPassword:            d.UserPassword,
 		Org:                     d.Org,
@@ -383,7 +383,7 @@ func (d *Driver) Create() error {
 	// custom config for script
 	confCustom := processor.CustomScriptConfigVMProcessor{
 		VAppName:    d.VAppName,
-		MachineName: d.MachineName,
+		MachineName: d.BaseDriver.GetMachineName(),
 		SSHKey:      sshKey,
 		SSHUser:     d.SSHUser,
 		UserData:    d.UserData,
@@ -394,7 +394,7 @@ func (d *Driver) Create() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -474,7 +474,7 @@ func (d *Driver) Start() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -518,7 +518,7 @@ func (d *Driver) Stop() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -554,7 +554,7 @@ func (d *Driver) Restart() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -590,7 +590,7 @@ func (d *Driver) Remove() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -627,7 +627,7 @@ func (d *Driver) Kill() error {
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
 		VAppName:       d.VAppName,
-		VMachineName:   d.MachineName,
+		VMachineName:   d.BaseDriver.GetMachineName(),
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
