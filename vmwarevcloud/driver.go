@@ -51,6 +51,7 @@ type Driver struct {
 
 func NewDriver(hostName, storePath string) drivers.Driver {
 	driver := &Driver{
+		VAppName:                defaultVAppName,
 		Catalog:                 defaultCatalog,
 		CatalogItem:             defaultCatalogItem,
 		CPUCount:                defaultCpus,
@@ -223,6 +224,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			EnvVar: "VCD_INIT_DATA",
 			Name:   "vcd-init-data",
 			Usage:  "Cloud-init based User data before everything",
+			Value:  "",
+		},
+		mcnflag.StringFlag{
+			EnvVar: "VAPP_NAME",
+			Name:   "vapp-name",
+			Usage:  "Vapp name",
 			Value:  "",
 		},
 	}
