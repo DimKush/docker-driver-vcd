@@ -53,7 +53,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		return vAppExist, nil
 	}
 
-	log.Info("VMProcessor.Create..checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
+	log.Infof("VMProcessor.Create..checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
 
 	// creates networks instances
 	networks := make([]*types.OrgVDCNetwork, 0)
@@ -87,7 +87,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		}
 
 		log.Infof("VMProcessor.Create.checkVAppExistsAndCreateIfNot.GetStatus status: %s", status)
-		if status != "POWERED_ON" {
+		if status != "RESOLVED" {
 			// wait until VApp will be ready
 			time.Sleep(time.Second * 2)
 			continue
@@ -120,13 +120,15 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}()
 
 	// creates template vApp
-	log.Info("VMProcessor.Create() Creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
+	log.Infof("VMProcessor.Create() Creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	// check if VM by name exists
 	vmExists, err := vApp.GetVMByName(p.cfg.VMachineName, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Create().GetVMByName error: %v", err)
-		return nil, err
+		if !errors.Is(err, govcd.ErrorEntityNotFound) {
+			log.Errorf("VMProcessor.Create().GetVMByName error: %v", err)
+			return nil, err
+		}
 	}
 
 	if vmExists != nil {
@@ -188,7 +190,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	// set post settings for VM
-	log.Info("VMProcessor.Create() vm was created and powered off. Set post-settings before run VM")
+	log.Infof("VMProcessor.Create() vm was created and powered off. Set post-settings before run VM")
 	err = p.vmPostSettings(virtualMachine)
 	if err != nil {
 		log.Errorf("VMProcessor.Create().vmPostSettings error: %v", err)
@@ -328,7 +330,7 @@ func (p *VMProcessor) Remove() error {
 
 	if status == "POWERED_ON" {
 		// If it's powered on, power it off before deleting
-		log.Info("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
+		log.Infof("VMProcessor.Remove() power it off %s...", p.cfg.VAppName)
 		task, errTask := virtualMachine.PowerOff()
 		if errTask != nil {
 			log.Errorf("VMProcessor.Remove.PowerOff error: %v", errTask)
@@ -517,7 +519,7 @@ func (p *VMProcessor) Start() error {
 	log.Infof("VMProcessor.Start.GetStatus current status :%s", status)
 
 	if status == "POWERED_OFF" {
-		log.Info("VMProcessor.Start.VCloudClient Start machine %s", p.cfg.VAppName)
+		log.Infof("VMProcessor.Start.VCloudClient Start machine %s", p.cfg.VAppName)
 		task, errOn := virtualMachine.PowerOn()
 		if errOn != nil {
 			log.Errorf("VMProcessor.Start.PowerOn error: %v", errOn)

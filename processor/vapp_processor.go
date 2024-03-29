@@ -56,7 +56,7 @@ func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	networks = append(networks, p.vcdClient.Network.OrgVDCNetwork)
 
 	// creates template vApp
-	log.Info("VAppProcessor.Create().VCloudClient Creates new vApp and VM instead with single name %s", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Create().VCloudClient Creates new vApp and VM instead with single name %s", p.cfg.VAppName)
 
 	// check if vApp by name already exists
 	var vAppExists *govcd.VApp
