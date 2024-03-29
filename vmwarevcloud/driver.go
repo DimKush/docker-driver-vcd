@@ -227,10 +227,10 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Value:  "",
 		},
 		mcnflag.StringFlag{
-			EnvVar: "VAPP_NAME",
-			Name:   "vapp-name",
-			Usage:  "Vapp name",
-			Value:  "",
+			EnvVar: "VCD_VAPP_NAME",
+			Name:   "vcd-vapp-name",
+			Usage:  "Vapp name where VM will be create",
+			Value:  defaultVAppName,
 		},
 	}
 }
@@ -288,7 +288,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.CPUCount = flags.Int("vcd-cpu-count")
 	d.MemorySize = flags.Int("vcd-memory-size")
 	d.DiskSize = flags.Int("vcd-disk-size")
-	d.VAppName = flags.String("vapp-name")
+	d.VAppName = flags.String("vcd-vapp-name")
 	d.PrivateIP = d.PublicIP
 
 	clientConfig := client.ConfigClient{
