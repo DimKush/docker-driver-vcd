@@ -123,10 +123,12 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	log.Infof("VMProcessor.Create() Creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	// check if VM by name exists
-	vmExists, err := vApp.GetVMByName(p.cfg.VMachineName, true)
-	if err != nil {
-		if !errors.Is(err, govcd.ErrorEntityNotFound) {
-			log.Errorf("VMProcessor.Create().GetVMByName error: %v", err)
+	vmExists, errExists := vApp.GetVMByName(p.cfg.VMachineName, true)
+	if errExists != nil {
+		if !errors.Is(errExists, govcd.ErrorEntityNotFound) {
+			log.Errorf("VMProcessor.Create().GetVMByName error: %v", errExists)
+			err = errExists
+
 			return nil, err
 		}
 	}

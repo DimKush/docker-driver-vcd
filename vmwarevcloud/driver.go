@@ -393,7 +393,8 @@ func (d *Driver) Create() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -472,7 +473,8 @@ func (d *Driver) Start() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -515,7 +517,8 @@ func (d *Driver) Stop() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -550,7 +553,8 @@ func (d *Driver) Restart() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -585,7 +589,8 @@ func (d *Driver) Remove() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
@@ -621,7 +626,8 @@ func (d *Driver) Kill() error {
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
-		VAppName:       d.MachineName,
+		VAppName:       d.VAppName,
+		VMachineName:   d.MachineName,
 		CPUCount:       d.CPUCount,
 		MemorySize:     int64(d.MemorySize),
 		DiskSize:       int64(d.DiskSize),
