@@ -515,7 +515,7 @@ func (p *VMProcessor) Start() error {
 	log.Infof("VMProcessor.Start.GetStatus current status :%s", status)
 
 	if status == "POWERED_OFF" {
-		log.Infof("VMProcessor.Start.VCloudClient Start machine %s", p.cfg.VAppName)
+		log.Infof("VMProcessor.Start.VCloudClient Start machine %s", p.cfg.VMachineName)
 		task, errOn := virtualMachine.PowerOn()
 		if errOn != nil {
 			log.Errorf("VMProcessor.Start.PowerOn error: %v", errOn)
@@ -617,7 +617,7 @@ func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
 func (p *VMProcessor) GetState() (state.State, error) {
 	log.Infof("VMProcessor.GetState() running with config: %+v", p.cfg)
 
-	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppID, true)
+	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if errApp != nil {
 		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
 		return state.None, errApp
