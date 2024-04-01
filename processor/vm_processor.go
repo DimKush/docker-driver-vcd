@@ -113,8 +113,8 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 	defer func() {
 		if err != nil {
-			log.Infof("VMProcessor.CleanState() reason ----> %v", err)
-			if errDel := p.CleanState(); errDel != nil {
+			log.Infof("VMProcessor.cleanState() reason ----> %v", err)
+			if errDel := p.cleanState(); errDel != nil {
 				log.Errorf("VMProcessor.Create().ClearError error: %v", errDel)
 			}
 		}
@@ -312,15 +312,15 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 func (p *VMProcessor) Remove() error {
 	log.Infof("VMProcessor.Remove() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Remove.GetVAppByName error: %v", err)
+		log.Errorf("VMProcessor.Remove.GetVAppById error: %v", err)
 		return err
 	}
 
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	virtualMachine, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Remove.GetVMByName error: %v", err)
+		log.Errorf("VMProcessor.Remove.GetVMById error: %v", err)
 		return err
 	}
 
@@ -365,13 +365,13 @@ func (p *VMProcessor) Remove() error {
 func (p *VMProcessor) Stop() error {
 	log.Infof("VMProcessor.Stop() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
 		log.Errorf("VMProcessor.Stop.getVDCApp error: %v", err)
 		return err
 	}
 
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	virtualMachine, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
 		log.Errorf("VMProcessor.Stop.GetVMByName error: %v", err)
 		return err
@@ -394,15 +394,15 @@ func (p *VMProcessor) Stop() error {
 func (p *VMProcessor) Kill() error {
 	log.Infof("VMProcessor.Kill() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Kill.GetVAppByName error: %v", err)
+		log.Errorf("VMProcessor.Kill.GetVAppById error: %v", err)
 		return err
 	}
 
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	virtualMachine, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Kill.GetVMByName error: %v", err)
+		log.Errorf("VMProcessor.Kill.GetVMById error: %v", err)
 		return err
 	}
 
@@ -429,15 +429,15 @@ func (p *VMProcessor) Kill() error {
 func (p *VMProcessor) Restart() error {
 	log.Infof("VMProcessor.Restart() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Restart.GetVAppByName error: %v", err)
+		log.Errorf("VMProcessor.Restart.GetVAppById error: %v", err)
 		return err
 	}
 
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	virtualMachine, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Kill.GetVMByName error: %v", err)
+		log.Errorf("VMProcessor.Kill.GetVMById error: %v", err)
 		return err
 	}
 
@@ -494,21 +494,21 @@ func (p *VMProcessor) Restart() error {
 func (p *VMProcessor) Start() error {
 	log.Infof("VMProcessor.Start() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Start.GetVAppByName error: %v", err)
+		log.Errorf("VMProcessor.Start.GetVAppById error: %v", err)
 		return err
 	}
 
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	virtualMachine, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
-		log.Errorf("VMProcessor.Start.GetVMByName error: %v", err)
+		log.Errorf("VMProcessor.Start.VMachineID error: %v", err)
 		return err
 	}
 
 	status, err := virtualMachine.GetStatus()
 	if err != nil {
-		log.Errorf("VMProcessor.Start.getVcdStatus.GetStatus error: %v", vApp)
+		log.Errorf("VMProcessor.Start.GetStatus error: %v", vApp)
 		return err
 	}
 
@@ -527,65 +527,6 @@ func (p *VMProcessor) Start() error {
 			return errTask
 		}
 	}
-
-	return nil
-}
-
-func (p *VMProcessor) CleanState() error {
-	log.Infof("VMProcessor.CleanState() running with config: %+v", p.cfg)
-
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
-	if err != nil {
-		log.Errorf("VMProcessor.CleanState().GetVAppByName error: %v", err)
-		return err
-	}
-
-	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
-	if err != nil {
-		log.Errorf("VMProcessor.CleanState().GetVMByName error: %v", err)
-		return err
-	}
-
-	for {
-		status, err := virtualMachine.GetStatus()
-		if err != nil {
-			log.Errorf("VMProcessor.Remove.GetStatus error: %v", err)
-			return err
-		}
-
-		if status == "UNRESOLVED" {
-			log.Infof("VMProcessor.Remove.Unresolved waiting for %s...", p.cfg.VAppName)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if status != "POWERED_OFF" {
-			log.Infof("VMProcessor.Remove machine :%s status is %s. Power it off", p.cfg.VAppName, status)
-			task, err := virtualMachine.PowerOff()
-
-			if err != nil {
-				log.Errorf("VMProcessor.Remove.PowerOff error: %v", err)
-				return err
-			}
-
-			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("VMProcessor.Remove.PowerOff.WaitTaskCompletion error: %v", err)
-				return err
-			}
-			break
-		} else {
-			log.Infof("VMProcessor.Remove.Powered Off %s...", p.cfg.VMachineName)
-			break
-		}
-	}
-
-	err = virtualMachine.Delete()
-	if err != nil {
-		log.Errorf("VMProcessor.Remove.Undeploy.WaitTaskCompletion after undeploy error: %v", err)
-		return err
-	}
-
-	log.Infof("VMProcessor.Remove.Deleting %s...", p.cfg.VMachineName)
 
 	return nil
 }
@@ -619,19 +560,19 @@ func (p *VMProcessor) GetState() (state.State, error) {
 
 	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if errApp != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
+		log.Errorf("VMProcessor.GetState.GetVAppById error: %v", errApp)
 		return state.None, errApp
 	}
 
-	vm, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	vm, err := vApp.GetVMById(p.cfg.VMachineID, true)
 	if err != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", err)
+		log.Errorf("VMProcessor.GetState.GetVMById error: %v", err)
 		return state.None, err
 	}
 
 	status, errStatus := vm.GetStatus()
 	if errStatus != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errStatus)
+		log.Errorf("VMProcessor.GetState.GetStatus error: %v", errStatus)
 		return state.None, errStatus
 	}
 
@@ -699,4 +640,68 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 	section.CustomizationScript = scriptSh
 
 	return section, nil
+}
+
+func (p *VMProcessor) cleanState() error {
+	log.Infof("VMProcessor.cleanState() running with config: %+v", p.cfg)
+
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	if err != nil {
+		log.Errorf("VMProcessor.cleanState().GetVAppByName error: %v", err)
+		return err
+	}
+
+	virtualMachine, err := vApp.GetVMByName(p.cfg.VMachineName, true)
+	if err != nil {
+		log.Errorf("VMProcessor.cleanState().GetVMByName error: %v", err)
+		return err
+	}
+
+	for {
+		status, err := virtualMachine.GetStatus()
+		if err != nil {
+			log.Errorf("VMProcessor.cleanState.GetStatus error: %v", err)
+			return err
+		}
+
+		if status == "UNRESOLVED" {
+			log.Infof("VMProcessor.cleanState.Unresolved waiting for %s...", p.cfg.VAppName)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if status != "POWERED_OFF" {
+			log.Infof("VMProcessor.cleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
+			task, err := virtualMachine.PowerOff()
+
+			if err != nil {
+				log.Errorf("VMProcessor.cleanState.PowerOff error: %v", err)
+				return err
+			}
+
+			if err = task.WaitTaskCompletion(); err != nil {
+				log.Errorf("VMProcessor.cleanState.PowerOff.WaitTaskCompletion error: %v", err)
+				return err
+			}
+			break
+		} else {
+			log.Infof("VMProcessor.cleanState.Powered Off %s...", p.cfg.VMachineName)
+			break
+		}
+	}
+
+	task, err := virtualMachine.DeleteAsync()
+	if err != nil {
+		log.Errorf("VMProcessor.DeleteAsync error: %v", err)
+		return err
+	}
+
+	if err := task.WaitTaskCompletion(); err != nil {
+		log.Errorf("VMProcessor.DeleteAsync.WaitTaskCompletion error: %v", err)
+		return err
+	}
+
+	log.Infof("VMProcessor.cleanState.Deleting %s...", p.cfg.VMachineName)
+
+	return nil
 }

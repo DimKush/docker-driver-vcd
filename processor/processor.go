@@ -19,11 +19,11 @@ type Processor interface {
 	Remove() error
 	Stop() error
 	Kill() error
-	CleanState() error
 	vmPostSettings(vm *govcd.VM) error
 	Restart() error
 	Start() error
 	GetState() (state.State, error)
+	cleanState() error
 }
 
 type ConfigProcessor struct {
@@ -37,4 +37,5 @@ type ConfigProcessor struct {
 	VdcEdgeGateway string
 	Org            string
 	VAppID         string
+	VMachineID     string
 }

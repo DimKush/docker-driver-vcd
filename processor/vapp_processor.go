@@ -45,8 +45,8 @@ func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 	defer func() {
 		if err != nil {
-			log.Infof("VAppProcessor.CleanState() reason ----> %v", err)
-			if errDel := p.CleanState(); errDel != nil {
+			log.Infof("VAppProcessor.cleanState() reason ----> %v", err)
+			if errDel := p.cleanState(); errDel != nil {
 				log.Errorf("VAppProcessor.Create().ClearError error: %v", errDel)
 			}
 		}
@@ -278,145 +278,17 @@ func (p *VAppProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 }
 
 // VMPostSettings - post settings for VM after VM was created (CPU, Disk, Memory, custom scripts, etc...)
-func (p *VAppProcessor) vmPostSettings(vm *govcd.VM) error {
-	log.Infof("vmPostSettings() running with custom config: %+v", p.cfg)
-
-	var numCPUsPtr *int
-
-	// config VM
-	cpuCount := p.cfg.CPUCount
-	numCPUsPtr = &cpuCount
-
-	vmSpecs := *vm.VM.VmSpecSection
-
-	vmSpecs.NumCpus = numCPUsPtr
-	vmSpecs.NumCoresPerSocket = numCPUsPtr
-	vmSpecs.MemoryResourceMb.Configured = p.cfg.MemorySize
-	vmSpecs.DiskSection.DiskSettings[0].SizeMb = p.cfg.DiskSize
-
-	_, err := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
-	if err != nil {
-		return fmt.Errorf("UpdateVmSpecSection error: %w", err)
-	}
-
-	return nil
-}
-
-func (p *VAppProcessor) CleanState() error {
-	log.Infof("VAppProcessor.CleanState() running with config: %+v", p.cfg)
-
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
-	if err != nil {
-		log.Errorf("VAppProcessor.CleanState().GetVAppByName error: %v", err)
-		return err
-	}
-
-	if p.cfg.EdgeGateway != "" && p.cfg.PublicIP != "" {
-		if p.cfg.VdcEdgeGateway != "" {
-			vdcGateway, err := p.vcdClient.Org.GetVDCByName(p.cfg.VdcEdgeGateway, true)
-			if err != nil {
-				log.Errorf("VAppProcessor.CleanState.GetVDCByName error: %v", err)
-				return err
-			}
-			edge, err := vdcGateway.GetEdgeGatewayByName(p.cfg.EdgeGateway, true)
-			if err != nil {
-				log.Errorf("VAppProcessor.CleanState.GetEdgeGatewayByName error: %v", err)
-				return err
-			}
-
-			log.Infof("VAppProcessor.Removing NAT and Firewall Rules on %s...", p.cfg.EdgeGateway)
-
-			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, p.cfg.PublicIP)
-			if err != nil {
-				return err
-			}
-			if err = task.WaitTaskCompletion(); err != nil {
-				return err
-			}
-		} else {
-			adminOrg, err := p.vcdClient.Client.GetAdminOrgByName(p.cfg.Org)
-			edge, err := adminOrg.GetNsxtEdgeGatewayByName(p.cfg.EdgeGateway)
-
-			dnat, err := edge.GetNatRuleByName(p.cfg.VAppName + "_dnat")
-			if err != nil {
-				return err
-			}
-
-			if errDel := dnat.Delete(); errDel != nil {
-				log.Errorf("VAppProcessor.CleanState.Delete dnat error: %v", errDel)
-				return err
-			}
-
-			snat, err := edge.GetNatRuleByName(p.cfg.VAppName + "_snat")
-			if err != nil {
-				return err
-			}
-			if errDel := snat.Delete(); errDel != nil {
-				log.Errorf("VAppProcessor.CleanState.Delete snat error: %v", errDel)
-				return err
-			}
-		}
-	}
-
-	for {
-		status, err := vApp.GetStatus()
-		if err != nil {
-			log.Errorf("VAppProcessor.CleanState.GetStatus error: %v", err)
-			return err
-		}
-
-		if status == "UNRESOLVED" {
-			log.Infof("VAppProcessor.CleanState.Unresolved waiting for %s...", p.cfg.VAppName)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if status != "POWERED_OFF" {
-			log.Infof("VAppProcessor.CleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
-			task, err := vApp.PowerOff()
-
-			if err != nil {
-				log.Errorf("VAppProcessor.CleanState.PowerOff error: %v", err)
-				return err
-			}
-
-			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("VAppProcessor.CleanState.PowerOff.WaitTaskCompletion error: %v", err)
-				return err
-			}
-			break
-		} else {
-			log.Infof("VAppProcessor.CleanState.Powered Off %s...", p.cfg.VAppName)
-			break
-		}
-	}
-
-	log.Infof("VAppProcessor.CleanState.Delete %s...", p.cfg.VAppName)
-	task, err := vApp.Delete()
-	if err != nil {
-		return err
-	}
-
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("Remove.Undeploy.WaitTaskCompletion after undeploy error: %v", err)
-		return err
-	}
-
-	log.Infof("Remove.Deleting %s...", p.cfg.VAppName)
-
-	return nil
-}
 
 func (p *VAppProcessor) Remove() error {
 	log.Infof("VAppProcessor.Remove() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VAppProcessor.Remove.GetVAppByName error: %v", err)
+		log.Errorf("VAppProcessor.Remove.GetVAppById error: %v", err)
 		return err
 	}
 
-	log.Infof("VAppProcessor.Remove found vApp with name %s", p.cfg.VAppName)
+	log.Infof("VAppProcessor.Remove found vApp with id %v and name %s", p.cfg.VAppID, p.cfg.VAppName)
 
 	if p.cfg.EdgeGateway != "" && p.cfg.PublicIP != "" {
 		log.Infof("VAppProcessor.Remove delete network connection for %s", p.cfg.VAppName)
@@ -479,8 +351,6 @@ func (p *VAppProcessor) Remove() error {
 		return err
 	}
 
-	log.Infof("VAppProcessor.Remove %s : status ", p.cfg.VAppName, status)
-
 	if status == "POWERED_ON" {
 		// If it's powered on, power it off before deleting
 		log.Info("VAppProcessor.Remove() power it off %s...", p.cfg.VAppName)
@@ -527,9 +397,9 @@ func (p *VAppProcessor) Remove() error {
 func (p *VAppProcessor) Stop() error {
 	log.Infof("VAppProcessor.Stop() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VAppProcessor.Stop.getVDCApp error: %v", err)
+		log.Errorf("VAppProcessor.Stop.GetVAppById error: %v", err)
 		return err
 	}
 
@@ -550,9 +420,9 @@ func (p *VAppProcessor) Stop() error {
 func (p *VAppProcessor) Kill() error {
 	log.Infof("VAppProcessor.Kill() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VAppProcessor.Kill.GetVAppByName error: %v", err)
+		log.Errorf("VAppProcessor.Kill.GetVAppById error: %v", err)
 		return err
 	}
 
@@ -573,9 +443,9 @@ func (p *VAppProcessor) Kill() error {
 func (p *VAppProcessor) Restart() error {
 	log.Infof("VAppProcessor.Restart() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VAppProcessor.Restart.GetVAppByName error: %v", err)
+		log.Errorf("VAppProcessor.Restart.GetVAppById error: %v", err)
 		return err
 	}
 
@@ -596,9 +466,9 @@ func (p *VAppProcessor) Restart() error {
 func (p *VAppProcessor) Start() error {
 	log.Infof("VAppProcessor.Start() running with config: %+v", p.cfg)
 
-	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
-		log.Errorf("VAppProcessor.Start.GetVAppByName error: %v", err)
+		log.Errorf("VAppProcessor.Start.GetVAppById error: %v", err)
 		return err
 	}
 
@@ -630,9 +500,9 @@ func (p *VAppProcessor) Start() error {
 func (p *VAppProcessor) GetState() (state.State, error) {
 	log.Infof("VAppProcessor.GetState() running with config: %+v", p.cfg)
 
-	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppID, true)
+	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if errApp != nil {
-		log.Errorf("GetState.getVcdStatus.GetStatus error: %v", errApp)
+		log.Errorf("GetState.GetStatus.GetVAppById error: %v", errApp)
 		return state.None, errApp
 	}
 
@@ -649,6 +519,30 @@ func (p *VAppProcessor) GetState() (state.State, error) {
 		return state.Stopped, nil
 	}
 	return state.None, nil
+}
+
+func (p *VAppProcessor) vmPostSettings(vm *govcd.VM) error {
+	log.Infof("vmPostSettings() running with custom config: %+v", p.cfg)
+
+	var numCPUsPtr *int
+
+	// config VM
+	cpuCount := p.cfg.CPUCount
+	numCPUsPtr = &cpuCount
+
+	vmSpecs := *vm.VM.VmSpecSection
+
+	vmSpecs.NumCpus = numCPUsPtr
+	vmSpecs.NumCoresPerSocket = numCPUsPtr
+	vmSpecs.MemoryResourceMb.Configured = p.cfg.MemorySize
+	vmSpecs.DiskSection.DiskSettings[0].SizeMb = p.cfg.DiskSize
+
+	_, err := vm.UpdateVmSpecSection(&vmSpecs, vm.VM.Description)
+	if err != nil {
+		return fmt.Errorf("UpdateVmSpecSection error: %w", err)
+	}
+
+	return nil
 }
 
 func (p *VAppProcessor) prepareCustomSectionForVM(
@@ -705,4 +599,109 @@ func (p *VAppProcessor) prepareCustomSectionForVM(
 	section.CustomizationScript = scriptSh
 
 	return section, nil
+}
+
+func (p *VAppProcessor) cleanState() error {
+	log.Infof("VAppProcessor.cleanState() running with config: %+v", p.cfg)
+
+	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+	if err != nil {
+		log.Errorf("VAppProcessor.cleanState().GetVAppByName error: %v", err)
+		return err
+	}
+
+	if p.cfg.EdgeGateway != "" && p.cfg.PublicIP != "" {
+		if p.cfg.VdcEdgeGateway != "" {
+			vdcGateway, err := p.vcdClient.Org.GetVDCByName(p.cfg.VdcEdgeGateway, true)
+			if err != nil {
+				log.Errorf("VAppProcessor.cleanState.GetVDCByName error: %v", err)
+				return err
+			}
+			edge, err := vdcGateway.GetEdgeGatewayByName(p.cfg.EdgeGateway, true)
+			if err != nil {
+				log.Errorf("VAppProcessor.cleanState.GetEdgeGatewayByName error: %v", err)
+				return err
+			}
+
+			log.Infof("VAppProcessor.Removing NAT and Firewall Rules on %s...", p.cfg.EdgeGateway)
+
+			task, err := edge.Remove1to1Mapping(vApp.VApp.Children.VM[0].NetworkConnectionSection.NetworkConnection[0].IPAddress, p.cfg.PublicIP)
+			if err != nil {
+				return err
+			}
+			if err = task.WaitTaskCompletion(); err != nil {
+				return err
+			}
+		} else {
+			adminOrg, err := p.vcdClient.Client.GetAdminOrgByName(p.cfg.Org)
+			edge, err := adminOrg.GetNsxtEdgeGatewayByName(p.cfg.EdgeGateway)
+
+			dnat, err := edge.GetNatRuleByName(p.cfg.VAppName + "_dnat")
+			if err != nil {
+				return err
+			}
+
+			if errDel := dnat.Delete(); errDel != nil {
+				log.Errorf("VAppProcessor.cleanState.Delete dnat error: %v", errDel)
+				return err
+			}
+
+			snat, err := edge.GetNatRuleByName(p.cfg.VAppName + "_snat")
+			if err != nil {
+				return err
+			}
+			if errDel := snat.Delete(); errDel != nil {
+				log.Errorf("VAppProcessor.cleanState.Delete snat error: %v", errDel)
+				return err
+			}
+		}
+	}
+
+	for {
+		status, err := vApp.GetStatus()
+		if err != nil {
+			log.Errorf("VAppProcessor.cleanState.GetStatus error: %v", err)
+			return err
+		}
+
+		if status == "UNRESOLVED" {
+			log.Infof("VAppProcessor.cleanState.Unresolved waiting for %s...", p.cfg.VAppName)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if status != "POWERED_OFF" {
+			log.Infof("VAppProcessor.cleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
+			task, err := vApp.PowerOff()
+
+			if err != nil {
+				log.Errorf("VAppProcessor.cleanState.PowerOff error: %v", err)
+				return err
+			}
+
+			if err = task.WaitTaskCompletion(); err != nil {
+				log.Errorf("VAppProcessor.cleanState.PowerOff.WaitTaskCompletion error: %v", err)
+				return err
+			}
+			break
+		} else {
+			log.Infof("VAppProcessor.cleanState.Powered Off %s...", p.cfg.VAppName)
+			break
+		}
+	}
+
+	log.Infof("VAppProcessor.cleanState.Delete %s...", p.cfg.VAppName)
+	task, err := vApp.Delete()
+	if err != nil {
+		return err
+	}
+
+	if err = task.WaitTaskCompletion(); err != nil {
+		log.Errorf("cleanState.WaitTaskCompletion after task error: %v", err)
+		return err
+	}
+
+	log.Infof("Remove.Deleting %s...", p.cfg.VAppName)
+
+	return nil
 }

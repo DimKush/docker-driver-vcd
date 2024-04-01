@@ -35,41 +35,47 @@ type VCloudClient struct {
 	CatalogItem       *govcd.CatalogItem
 }
 
-func NewVCloudClient(cfg ConfigClient) *VCloudClient {
+func NewVCloudClient(cfg ConfigClient) (*VCloudClient, error) {
+	log.Infof("NewVCloudClient Connecting vCloud with url %s, name: %s and org: %s", cfg.Url, cfg.UserName, cfg.Org)
+
 	// creates a new VCDClient with params
-	vcdClient := govcd.NewVCDClient(*cfg.Url, cfg.Insecure)
+	client := govcd.NewVCDClient(*cfg.Url, cfg.Insecure)
 
-	return &VCloudClient{
+	vcdClient := &VCloudClient{
 		cfg:    cfg,
-		Client: vcdClient,
+		Client: client,
 	}
-}
 
-func (c *VCloudClient) BuildInstance() error {
-	log.Infof("buildInstance Connecting vCloud with url %s and name: %s", c.cfg.Url, c.cfg.UserName)
 	// Authenticate to vCloud Director
-	errAuth := c.Client.Authenticate(c.cfg.UserName, c.cfg.UserPassword, c.cfg.Org)
+	errAuth := vcdClient.Client.Authenticate(cfg.UserName, cfg.UserPassword, cfg.Org)
 	if errAuth != nil {
-		log.Errorf("buildVdcApplication.Authenticate error: %v", errAuth)
-		return errAuth
+		log.Errorf("NewVCloudClient.Authenticate error: %v", errAuth)
+		return nil, errAuth
 	}
 
 	// Prepare vdc application
-	org, errOrg := c.Client.GetOrgByName(c.cfg.Org)
+	org, errOrg := vcdClient.Client.GetOrgByName(cfg.Org)
 	if errAuth != nil {
 		log.Errorf("buildInstance.GetOrgById error: %v", errOrg)
-		return errOrg
+		return nil, errOrg
 	}
 
-	vdc, errName := org.GetVDCByName(c.cfg.VDC, true)
+	vdc, errName := org.GetVDCByName(cfg.VDC, true)
 	if errName != nil {
 		log.Errorf("buildInstance.GetVDCByName error: %v", errName)
-		return errName
+		return nil, errName
 	}
 
-	log.Infof("Find VDC Network by name: %s", c.cfg.OrgVDCNet)
+	vcdClient.VirtualDataCenter = vdc
+	vcdClient.Org = org
 
-	network, errVdc := vdc.GetOrgVdcNetworkByName(c.cfg.OrgVDCNet, true)
+	return vcdClient, nil
+}
+
+func (c *VCloudClient) BuildInstance() error {
+	log.Infof("BuildInstance running with config: %+v", c.cfg)
+
+	network, errVdc := c.VirtualDataCenter.GetOrgVdcNetworkByName(c.cfg.OrgVDCNet, true)
 	if errVdc != nil {
 		log.Errorf("buildInstance.GetOrgVdcNetworkByName error: %v", errVdc)
 		return errVdc
@@ -77,7 +83,7 @@ func (c *VCloudClient) BuildInstance() error {
 
 	log.Infof("buildInstance Finding Catalog: %s", c.cfg.Catalog)
 
-	catalog, errCat := org.GetCatalogByName(c.cfg.Catalog, true)
+	catalog, errCat := c.Org.GetCatalogByName(c.cfg.Catalog, true)
 	if errCat != nil {
 		log.Errorf("buildInstance.GetCatalogByName error: %v", errCat)
 		return errCat
@@ -92,7 +98,7 @@ func (c *VCloudClient) BuildInstance() error {
 	}
 
 	// Get StorageProfileReference
-	storageProfileRef, errProf := vdc.FindStorageProfileReference(c.cfg.StorProfile)
+	storageProfileRef, errProf := c.VirtualDataCenter.FindStorageProfileReference(c.cfg.StorProfile)
 	if errProf != nil {
 		log.Errorf("buildInstance.FindStorageProfileReference error: %v", errProf)
 		return errProf
@@ -120,7 +126,6 @@ func (c *VCloudClient) BuildInstance() error {
 
 	c.VAppTemplate = vAppTemplate
 	c.StorageProfileRef = storageProfileRef
-	c.VirtualDataCenter = vdc
 	c.CatalogItem = catalogItem
 	c.Network = network
 

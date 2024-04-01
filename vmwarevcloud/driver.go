@@ -47,6 +47,7 @@ type Driver struct {
 	VCDConfigClient         client.ConfigClient
 	processorConfig         processor.ConfigProcessor
 	VAppName                string
+	VMachineID              string
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
@@ -336,12 +337,10 @@ func (d *Driver) DriverName() string {
 func (d *Driver) GetState() (state.State, error) {
 	log.Info("GetState() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("GetState.buildInstance vdc error: %v", errBuild)
-		return state.Error, errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Driver.GetState.NewVCloudClient error: %v", err)
+		return state.Error, err
 	}
 
 	// creates Processor
@@ -356,6 +355,7 @@ func (d *Driver) GetState() (state.State, error) {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -373,7 +373,11 @@ func (d *Driver) Create() error {
 
 	log.Info("Create() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Create().NewVCloudClient error: %v", err)
+		return err
+	}
 
 	errBuild := vcdClient.BuildInstance()
 	if errBuild != nil {
@@ -405,7 +409,6 @@ func (d *Driver) Create() error {
 		PublicIP:       d.PublicIP,
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
-		VAppID:         d.VAppID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -444,6 +447,7 @@ func (d *Driver) Create() error {
 
 		if vm.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress != "" {
 			d.PrivateIP = vm.VM.NetworkConnectionSection.NetworkConnection[0].IPAddress
+			d.VMachineID = vm.VM.ID
 			break
 		}
 	}
@@ -466,12 +470,10 @@ func (d *Driver) Start() error {
 	log.Info("Start() running")
 
 	// check vcd platform state
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("Start.buildInstance vdc error: %v", errBuild)
-		return errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Start().NewVCloudClient error: %v", err)
+		return err
 	}
 
 	// creates Processor
@@ -486,6 +488,7 @@ func (d *Driver) Start() error {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -495,7 +498,6 @@ func (d *Driver) Start() error {
 		return err
 	}
 
-	var err error
 	d.IPAddress, err = d.GetIP()
 	if err != nil {
 		log.Errorf("Start.GetIP error: %v", err)
@@ -508,12 +510,10 @@ func (d *Driver) Start() error {
 func (d *Driver) Stop() error {
 	log.Info("Stop() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("Restart.buildInstance vdc error: %v", errBuild)
-		return errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Stop.NewVCloudClient error %v", err)
+		return err
 	}
 
 	log.Info("Stop.VCloudClient.getVDCApp")
@@ -530,6 +530,7 @@ func (d *Driver) Stop() error {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -544,12 +545,10 @@ func (d *Driver) Stop() error {
 func (d *Driver) Restart() error {
 	log.Info("Restart() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("Restart.buildInstance vdc error: %v", errBuild)
-		return errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Restart.NewVCloudClient error %v", err)
+		return err
 	}
 
 	log.Info("Restart.VCloudClient create new processor")
@@ -566,6 +565,7 @@ func (d *Driver) Restart() error {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -580,15 +580,11 @@ func (d *Driver) Restart() error {
 func (d *Driver) Remove() error {
 	log.Info("Remove() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("Remove.buildInstance vdc error: %v", errBuild)
-		return errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Remove.NewVCloudClient error: %v", err)
+		return err
 	}
-
-	log.Info("Remove.VCloudClient create processor")
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
@@ -602,6 +598,7 @@ func (d *Driver) Remove() error {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
@@ -617,15 +614,11 @@ func (d *Driver) Remove() error {
 func (d *Driver) Kill() error {
 	log.Info("Kill() running")
 
-	vcdClient := client.NewVCloudClient(d.VCDConfigClient)
-
-	errBuild := vcdClient.BuildInstance()
-	if errBuild != nil {
-		log.Errorf("Kill.buildInstance vdc error: %v", errBuild)
-		return errBuild
+	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	if err != nil {
+		log.Errorf("Kill.NewVCloudClient error: %v", err)
+		return err
 	}
-
-	log.Info("Stop.VCloudClient create processor")
 
 	// creates Processor
 	processorConfig := processor.ConfigProcessor{
@@ -639,6 +632,7 @@ func (d *Driver) Kill() error {
 		VdcEdgeGateway: d.VdcEdgeGateway,
 		Org:            d.Org,
 		VAppID:         d.VAppID,
+		VMachineID:     d.VMachineID,
 	}
 
 	proc := processor.NewVMProcessor(vcdClient, processorConfig)
