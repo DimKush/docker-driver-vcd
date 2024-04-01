@@ -601,7 +601,13 @@ func (d *Driver) Remove() error {
 		VMachineID:     d.VMachineID,
 	}
 
-	proc := processor.NewVMProcessor(vcdClient, processorConfig)
+	var proc processor.Processor
+
+	if processorConfig.VMachineID == "" {
+		proc = processor.NewVAppProcessor(vcdClient, processorConfig)
+	} else {
+		proc = processor.NewVMProcessor(vcdClient, processorConfig)
+	}
 
 	if err := proc.Remove(); err != nil {
 		log.Errorf("Remove error: %v", err)
@@ -635,7 +641,14 @@ func (d *Driver) Kill() error {
 		VMachineID:     d.VMachineID,
 	}
 
-	proc := processor.NewVMProcessor(vcdClient, processorConfig)
+	var proc processor.Processor
+
+	if processorConfig.VMachineID == "" {
+		proc = processor.NewVAppProcessor(vcdClient, processorConfig)
+	} else {
+		proc = processor.NewVMProcessor(vcdClient, processorConfig)
+	}
+
 	if err := proc.Kill(); err != nil {
 		log.Errorf("Kill error: %v", err)
 		return err
