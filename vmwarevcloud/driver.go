@@ -44,8 +44,6 @@ type Driver struct {
 	Org                     string
 	Insecure                bool
 	Rke2                    bool
-	VCDConfigClient         client.ConfigClient
-	processorConfig         processor.ConfigProcessor
 	VAppName                string
 	VMachineID              string
 }
@@ -69,24 +67,6 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 			StorePath:   storePath,
 		},
 	}
-
-	clientConfig := client.ConfigClient{
-		MachineName:             driver.MachineName,
-		UserName:                driver.UserName,
-		UserPassword:            driver.UserPassword,
-		Org:                     driver.Org,
-		VDC:                     driver.VDC,
-		OrgVDCNet:               driver.OrgVDCNet,
-		Catalog:                 driver.Catalog,
-		CatalogItem:             driver.CatalogItem,
-		StorProfile:             driver.StorProfile,
-		AdapterType:             driver.AdapterType,
-		IPAddressAllocationMode: driver.IPAddressAllocationMode,
-		Url:                     driver.Url,
-		Insecure:                driver.Insecure,
-	}
-
-	driver.VCDConfigClient = clientConfig
 
 	return driver
 }
@@ -292,24 +272,6 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.VAppName = flags.String("vcd-vapp-name")
 	d.PrivateIP = d.PublicIP
 
-	clientConfig := client.ConfigClient{
-		MachineName:             d.BaseDriver.GetMachineName(),
-		UserName:                d.UserName,
-		UserPassword:            d.UserPassword,
-		Org:                     d.Org,
-		VDC:                     d.VDC,
-		OrgVDCNet:               d.OrgVDCNet,
-		Catalog:                 d.Catalog,
-		CatalogItem:             d.CatalogItem,
-		StorProfile:             d.StorProfile,
-		AdapterType:             d.AdapterType,
-		IPAddressAllocationMode: d.IPAddressAllocationMode,
-		Url:                     d.Url,
-		Insecure:                d.Insecure,
-	}
-
-	d.VCDConfigClient = clientConfig
-
 	return nil
 }
 
@@ -337,7 +299,8 @@ func (d *Driver) DriverName() string {
 func (d *Driver) GetState() (state.State, error) {
 	log.Info("GetState() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Driver.GetState.NewVCloudClient error: %v", err)
 		return state.Error, err
@@ -373,7 +336,8 @@ func (d *Driver) Create() error {
 
 	log.Info("Create() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Create().NewVCloudClient error: %v", err)
 		return err
@@ -470,7 +434,8 @@ func (d *Driver) Start() error {
 	log.Info("Start() running")
 
 	// check vcd platform state
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Start().NewVCloudClient error: %v", err)
 		return err
@@ -510,7 +475,8 @@ func (d *Driver) Start() error {
 func (d *Driver) Stop() error {
 	log.Info("Stop() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Stop.NewVCloudClient error %v", err)
 		return err
@@ -545,7 +511,7 @@ func (d *Driver) Stop() error {
 func (d *Driver) Restart() error {
 	log.Info("Restart() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	vcdClient, err := client.NewVCloudClient(d.buildVCDClientConfig())
 	if err != nil {
 		log.Errorf("Restart.NewVCloudClient error %v", err)
 		return err
@@ -580,7 +546,8 @@ func (d *Driver) Restart() error {
 func (d *Driver) Remove() error {
 	log.Info("Remove() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Remove.NewVCloudClient error: %v", err)
 		return err
@@ -620,7 +587,8 @@ func (d *Driver) Remove() error {
 func (d *Driver) Kill() error {
 	log.Info("Kill() running")
 
-	vcdClient, err := client.NewVCloudClient(d.VCDConfigClient)
+	configVCDClient := d.buildVCDClientConfig()
+	vcdClient, err := client.NewVCloudClient(configVCDClient)
 	if err != nil {
 		log.Errorf("Kill.NewVCloudClient error: %v", err)
 		return err
@@ -672,4 +640,22 @@ func (d *Driver) createSSHKey() (string, error) {
 	}
 
 	return string(publicKey), nil
+}
+
+func (d *Driver) buildVCDClientConfig() client.ConfigClient {
+	return client.ConfigClient{
+		MachineName:             d.MachineName,
+		UserName:                d.UserName,
+		UserPassword:            d.UserPassword,
+		Org:                     d.Org,
+		VDC:                     d.VDC,
+		OrgVDCNet:               d.OrgVDCNet,
+		Catalog:                 d.Catalog,
+		CatalogItem:             d.CatalogItem,
+		StorProfile:             d.StorProfile,
+		AdapterType:             d.AdapterType,
+		IPAddressAllocationMode: d.IPAddressAllocationMode,
+		Url:                     d.Url,
+		Insecure:                d.Insecure,
+	}
 }
