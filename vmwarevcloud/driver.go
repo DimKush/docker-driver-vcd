@@ -327,14 +327,14 @@ func (d *Driver) GetState() (state.State, error) {
 }
 
 func (d *Driver) Create() error {
+	log.Info("Create() running")
+
 	// create ssh key
 	sshKey, errSsh := d.createSSHKey()
 	if errSsh != nil {
 		log.Errorf("Create().createSSHKey error: %s", errSsh)
 		return errSsh
 	}
-
-	log.Info("Create() running")
 
 	configVCDClient := d.buildVCDClientConfig()
 	vcdClient, err := client.NewVCloudClient(configVCDClient)
