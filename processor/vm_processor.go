@@ -39,7 +39,7 @@ func NewVMProcessor(client *client.VCloudClient, cfg ConfigProcessor) Processor 
 }
 
 func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
-	log.Infof("VMProcessor.checkVAppExistsAndCreateIfNot running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.checkVAppExistsAndCreateIfNot running with config: %+v", p.cfg)
 
 	vAppExist, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -54,7 +54,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		return vAppExist, nil
 	}
 
-	log.Infof("VMProcessor.checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
+	log.Debugf("VMProcessor.checkVAppExistsAndCreateIfNot VApp %s doesn't exist. Creates new vApp", p.cfg.VAppName)
 
 	// creates networks instances
 	networks := make([]*types.OrgVDCNetwork, 0)
@@ -87,7 +87,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 			return nil, err
 		}
 
-		log.Infof("VMProcessor.checkVAppExistsAndCreateIfNot.GetStatus current status: %s", status)
+		log.Debugf("VMProcessor.checkVAppExistsAndCreateIfNot.GetStatus current status: %s", status)
 		if status != "RESOLVED" {
 			// wait until VApp will be ready
 			time.Sleep(time.Second * 2)
@@ -101,7 +101,7 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 }
 
 func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
-	log.Infof("VMProcessor.Create running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Create running with config: %+v", p.cfg)
 
 	vApp, errVApp := p.checkVAppExistsAndCreateIfNot()
 	if errVApp != nil {
@@ -113,7 +113,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 
 	defer func() {
 		if err != nil {
-			log.Infof("VMProcessor.cleanState reason ----> %v", err)
+			log.Errorf("VMProcessor.cleanState reason ----> %v", err)
 			if errDel := p.cleanState(); errDel != nil {
 				log.Errorf("VMProcessor.cleanState error: %v", errDel)
 			}
@@ -121,7 +121,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}()
 
 	// creates template vApp
-	log.Infof("VMProcessor.Create creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
+	log.Debugf("VMProcessor.Create creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	// check if VM by name exists
 	vmExists, errExists := vApp.GetVMByName(p.cfg.VMachineName, true)
@@ -181,7 +181,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 				return nil, err
 			}
 
-			log.Infof("VMProcessor.Create waiting for VM %s created and powered off. Current status: %s", p.cfg.VAppName, status)
+			log.Debugf("VMProcessor.Create waiting for VM %s created and powered off. Current status: %s", p.cfg.VAppName, status)
 
 			if status == "POWERED_OFF" {
 				virtualMachine = vm
@@ -193,7 +193,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	// set post settings for VM
-	log.Infof("VMProcessor.Create VM %s was created and powered off. Set post-settings before run VM", p.cfg.VMachineName)
+	log.Debugf("VMProcessor.Create VM %s was created and powered off. Set post-settings before run VM", p.cfg.VMachineName)
 	err = p.vmPostSettings(virtualMachine)
 	if err != nil {
 		log.Errorf("VMProcessor.Create.vmPostSettings error: %v", err)
@@ -233,7 +233,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 				return nil, err
 			}
 
-			log.Infof("VMProcessor.Create Creating NAT and Firewall Rules on %s...", p.cfg.EdgeGateway)
+			log.Debugf("VMProcessor.Create Creating NAT and Firewall Rules on %s...", p.cfg.EdgeGateway)
 
 			var task1To1Map govcd.Task
 			task1To1Map, err = edge.Create1to1Mapping(
@@ -310,7 +310,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 }
 
 func (p *VMProcessor) Remove() error {
-	log.Infof("VMProcessor.Remove running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Remove running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
@@ -333,7 +333,7 @@ func (p *VMProcessor) Remove() error {
 
 	if status != "POWERED_OFF" {
 		// If it's powered on, power it off before deleting
-		log.Infof("VMProcessor.Remove VM with name %s in vApp name %s", p.cfg.VMachineName, p.cfg.VAppName)
+		log.Debugf("VMProcessor.Remove VM with name %s in vApp name %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 		task, errTask := virtualMachine.PowerOff()
 		if errTask != nil {
@@ -347,7 +347,7 @@ func (p *VMProcessor) Remove() error {
 		}
 	}
 
-	log.Infof("VMProcessor.Remove.DeleteAsync deleting VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
+	log.Debugf("VMProcessor.Remove.DeleteAsync deleting VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	task, err := virtualMachine.DeleteAsync()
 	if err != nil {
@@ -364,7 +364,7 @@ func (p *VMProcessor) Remove() error {
 }
 
 func (p *VMProcessor) Stop() error {
-	log.Infof("VMProcessor.Stop running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Stop running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
@@ -393,7 +393,7 @@ func (p *VMProcessor) Stop() error {
 }
 
 func (p *VMProcessor) Kill() error {
-	log.Infof("VMProcessor.Kill running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Kill running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
@@ -428,7 +428,7 @@ func (p *VMProcessor) Kill() error {
 }
 
 func (p *VMProcessor) Restart() error {
-	log.Infof("VMProcessor.Restart running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Restart running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
@@ -454,7 +454,6 @@ func (p *VMProcessor) Restart() error {
 	}
 
 	// wait while vm powered off
-
 	for {
 		vm, errName := vApp.GetVMById(p.cfg.VMachineID, true)
 		if errName != nil {
@@ -468,7 +467,7 @@ func (p *VMProcessor) Restart() error {
 			return err
 		}
 
-		log.Infof("VMProcessor.Restart VM : %s current status :%s", p.cfg.VMachineName, status)
+		log.Debugf("VMProcessor.Restart VM : %s current status :%s", p.cfg.VMachineName, status)
 
 		if status == "POWERED_OFF" {
 			virtualMachine = vm
@@ -493,7 +492,7 @@ func (p *VMProcessor) Restart() error {
 }
 
 func (p *VMProcessor) Start() error {
-	log.Infof("VMProcessor.Start running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.Start running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if err != nil {
@@ -513,10 +512,10 @@ func (p *VMProcessor) Start() error {
 		return err
 	}
 
-	log.Infof("VMProcessor.Start current status :%s", status)
+	log.Debugf("VMProcessor.Start current status :%s", status)
 
 	if status == "POWERED_OFF" {
-		log.Infof("VMProcessor.Start run machine %s with id : %s in vapp %s", p.cfg.VMachineName, p.cfg.VMachineID, p.cfg.VAppName)
+		log.Debugf("VMProcessor.Start run machine %s with id : %s in vapp %s", p.cfg.VMachineName, p.cfg.VMachineID, p.cfg.VAppName)
 
 		task, errOn := virtualMachine.PowerOn()
 		if errOn != nil {
@@ -534,7 +533,7 @@ func (p *VMProcessor) Start() error {
 }
 
 func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
-	log.Infof("VMProcessor.vmPostSettings running with custom config: %+v", p.cfg)
+	log.Debugf("VMProcessor.vmPostSettings running with custom config: %+v", p.cfg)
 
 	var numCPUsPtr *int
 
@@ -558,7 +557,7 @@ func (p *VMProcessor) vmPostSettings(vm *govcd.VM) error {
 }
 
 func (p *VMProcessor) GetState() (state.State, error) {
-	log.Infof("VMProcessor.GetState running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.GetState running with config: %+v", p.cfg)
 
 	vApp, errApp := p.vcdClient.VirtualDataCenter.GetVAppById(p.cfg.VAppID, true)
 	if errApp != nil {
@@ -597,7 +596,7 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 		return types.GuestCustomizationSection{}, fmt.Errorf("VMProcessor.prepareCustomSectionForVM invalid config type: %T", cfg)
 	}
 
-	log.Infof("VMProcessor.prepareCustomSectionForVM running with custom config: %+v", cfg)
+	log.Debugf("VMProcessor.prepareCustomSectionForVM running with custom config: %+v", cfg)
 
 	var (
 		section      types.GuestCustomizationSection
@@ -624,7 +623,7 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 
 		cloudInit := rancher.GetCloudInitRancher(string(readUserData))
 
-		log.Infof("VMProcessor.prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", cfg.Rke2)
+		log.Debugf("VMProcessor.prepareCustomSection ----> rke2: %v Generate /usr/local/custom_script/install.sh file", cfg.Rke2)
 
 		// generate install.sh
 		cloudInitWithQuotes := strings.Join([]string{"'", cloudInit, "'"}, "")
@@ -637,15 +636,13 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 		scriptSh += cfg.UserData
 	}
 
-	log.Infof("VMProcessor.prepareCustomSection generate script ----> %s", scriptSh)
-
 	section.CustomizationScript = scriptSh
 
 	return section, nil
 }
 
 func (p *VMProcessor) cleanState() error {
-	log.Infof("VMProcessor.cleanState running with config: %+v", p.cfg)
+	log.Debugf("VMProcessor.cleanState running with config: %+v", p.cfg)
 
 	vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
 	if err != nil {
@@ -667,13 +664,13 @@ func (p *VMProcessor) cleanState() error {
 		}
 
 		if status == "UNRESOLVED" {
-			log.Infof("VMProcessor.cleanState.Unresolved waiting for %s...", p.cfg.VAppName)
+			log.Debugf("VMProcessor.cleanState.Unresolved waiting for %s...", p.cfg.VAppName)
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		if status != "POWERED_OFF" {
-			log.Infof("VMProcessor.cleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
+			log.Debugf("VMProcessor.cleanState machine :%s status is %s. Power it off", p.cfg.VAppName, status)
 
 			task, err := virtualMachine.PowerOff()
 			if err != nil {
@@ -687,7 +684,7 @@ func (p *VMProcessor) cleanState() error {
 			}
 			break
 		} else {
-			log.Infof("VMProcessor.cleanState wait %s...", p.cfg.VMachineName)
+			log.Debugf("VMProcessor.cleanState wait %s...", p.cfg.VMachineName)
 			break
 		}
 	}
@@ -703,7 +700,7 @@ func (p *VMProcessor) cleanState() error {
 		return err
 	}
 
-	log.Infof("VMProcessor.cleanState %s...", p.cfg.VMachineName)
+	log.Debugf("VMProcessor.cleanState %s...", p.cfg.VMachineName)
 
 	return nil
 }

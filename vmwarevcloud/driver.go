@@ -570,7 +570,11 @@ func (d *Driver) Remove() error {
 
 	var proc processor.Processor
 
+	// if VMachineID is empty, it's a VApp
 	if processorConfig.VMachineID == "" {
+		processorConfig.VAppName = d.MachineName
+		processorConfig.VMachineName = d.MachineName
+
 		proc = processor.NewVAppProcessor(vcdClient, processorConfig)
 	} else {
 		proc = processor.NewVMProcessor(vcdClient, processorConfig)

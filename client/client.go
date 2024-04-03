@@ -73,8 +73,6 @@ func NewVCloudClient(cfg ConfigClient) (*VCloudClient, error) {
 }
 
 func (c *VCloudClient) BuildInstance() error {
-	log.Infof("BuildInstance running with config: %+v", c.cfg)
-
 	network, errVdc := c.VirtualDataCenter.GetOrgVdcNetworkByName(c.cfg.OrgVDCNet, true)
 	if errVdc != nil {
 		log.Errorf("buildInstance.GetOrgVdcNetworkByName error: %v", errVdc)
