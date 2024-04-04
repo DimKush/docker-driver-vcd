@@ -606,7 +606,7 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 
 	section = vmScript
 
-	section.ComputerName = cfg.VMachineName
+	section.ComputerName = cfg.MachineName
 	section.AdminPasswordEnabled = &adminEnabled
 
 	scriptSh = cfg.InitData + "\n"
