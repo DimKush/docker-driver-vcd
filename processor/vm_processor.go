@@ -347,6 +347,16 @@ func (p *VMProcessor) Remove() error {
 		}
 	}
 
+	// unmount disks
+	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
+	for _, diskSpec := range disksSettings {
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s", diskSpec.DiskId)
+		if err := virtualMachine.DeleteInternalDisk(diskSpec.DiskId); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk with id %s error: %v", diskSpec.DiskId, err)
+			return err
+		}
+	}
+
 	log.Debugf("VMProcessor.Remove.DeleteAsync deleting VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	task, err := virtualMachine.DeleteAsync()
@@ -416,6 +426,16 @@ func (p *VMProcessor) Kill() error {
 	if errWait := task.WaitTaskCompletion(); errWait != nil {
 		log.Errorf("VMProcessor.Kill.WaitTaskCompletion error: %v", errWait)
 		return errWait
+	}
+
+	// unmount disks
+	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
+	for _, diskSpec := range disksSettings {
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s", diskSpec.DiskId)
+		if err := virtualMachine.DeleteInternalDisk(diskSpec.DiskId); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk with id %d error: %v", diskSpec.DiskId, err)
+			return err
+		}
 	}
 
 	err = virtualMachine.Delete()
