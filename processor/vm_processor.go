@@ -350,9 +350,23 @@ func (p *VMProcessor) Remove() error {
 	// unmount disks
 	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
 	for _, diskSpec := range disksSettings {
-		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s", diskSpec.DiskId)
-		if err := virtualMachine.DeleteInternalDisk(diskSpec.DiskId); err != nil {
-			log.Errorf("VMProcessor.Remove.DeleteInternalDisk with id %s error: %v", diskSpec.DiskId, err)
+		if diskSpec.UnitNumber == 0 {
+			log.Debugf("VMProcessor.Remove.DeleteInternalDisk ignore OS disk with id %s", diskSpec.DiskId)
+			continue
+		}
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s, name: %s", diskSpec.DiskId, diskSpec.Disk.Name)
+		task, errTask := virtualMachine.DetachDisk(&types.DiskAttachOrDetachParams{
+			Disk: &types.Reference{
+				HREF: diskSpec.Disk.HREF,
+			},
+		})
+		if errTask != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", errTask)
+			return errTask
+		}
+
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", err)
 			return err
 		}
 	}
@@ -431,9 +445,23 @@ func (p *VMProcessor) Kill() error {
 	// unmount disks
 	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
 	for _, diskSpec := range disksSettings {
-		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s", diskSpec.DiskId)
-		if err := virtualMachine.DeleteInternalDisk(diskSpec.DiskId); err != nil {
-			log.Errorf("VMProcessor.Remove.DeleteInternalDisk with id %d error: %v", diskSpec.DiskId, err)
+		if diskSpec.UnitNumber == 0 {
+			log.Debugf("VMProcessor.Remove.DeleteInternalDisk ignore OS disk with id %s", diskSpec.DiskId)
+			continue
+		}
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s, name: %s", diskSpec.DiskId, diskSpec.Disk.Name)
+		task, errTask := virtualMachine.DetachDisk(&types.DiskAttachOrDetachParams{
+			Disk: &types.Reference{
+				HREF: diskSpec.Disk.HREF,
+			},
+		})
+		if errTask != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", errTask)
+			return errTask
+		}
+
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", err)
 			return err
 		}
 	}
