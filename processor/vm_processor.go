@@ -347,6 +347,30 @@ func (p *VMProcessor) Remove() error {
 		}
 	}
 
+	// unmount disks
+	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
+	for _, diskSpec := range disksSettings {
+		if diskSpec.UnitNumber == 0 {
+			log.Debugf("VMProcessor.Remove.DeleteInternalDisk ignore OS disk with id %s", diskSpec.DiskId)
+			continue
+		}
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s, name: %s", diskSpec.DiskId, diskSpec.Disk.Name)
+		task, errTask := virtualMachine.DetachDisk(&types.DiskAttachOrDetachParams{
+			Disk: &types.Reference{
+				HREF: diskSpec.Disk.HREF,
+			},
+		})
+		if errTask != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", errTask)
+			return errTask
+		}
+
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", err)
+			return err
+		}
+	}
+
 	log.Debugf("VMProcessor.Remove.DeleteAsync deleting VM %s in app: %s", p.cfg.VMachineName, p.cfg.VAppName)
 
 	task, err := virtualMachine.DeleteAsync()
@@ -416,6 +440,30 @@ func (p *VMProcessor) Kill() error {
 	if errWait := task.WaitTaskCompletion(); errWait != nil {
 		log.Errorf("VMProcessor.Kill.WaitTaskCompletion error: %v", errWait)
 		return errWait
+	}
+
+	// unmount disks
+	disksSettings := virtualMachine.VM.VmSpecSection.DiskSection.DiskSettings
+	for _, diskSpec := range disksSettings {
+		if diskSpec.UnitNumber == 0 {
+			log.Debugf("VMProcessor.Remove.DeleteInternalDisk ignore OS disk with id %s", diskSpec.DiskId)
+			continue
+		}
+		log.Debugf("VMProcessor.Remove.DeleteInternalDisk with id %s, name: %s", diskSpec.DiskId, diskSpec.Disk.Name)
+		task, errTask := virtualMachine.DetachDisk(&types.DiskAttachOrDetachParams{
+			Disk: &types.Reference{
+				HREF: diskSpec.Disk.HREF,
+			},
+		})
+		if errTask != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", errTask)
+			return errTask
+		}
+
+		if err = task.WaitTaskCompletion(); err != nil {
+			log.Errorf("VMProcessor.Remove.DeleteInternalDisk error: %v", err)
+			return err
+		}
 	}
 
 	err = virtualMachine.Delete()
