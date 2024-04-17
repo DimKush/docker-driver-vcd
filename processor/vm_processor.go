@@ -749,8 +749,6 @@ func TaskWithReadyVApp(vApp *govcd.VApp, task govcd.Task, message string) error 
 			return errStatus
 		}
 		log.Debugf("VMProcessor.TaskWithReadyVApp.GetStatus current status: %s", status)
-		log.Infof(message, status)
-		log.Infof("VMProcessor.TaskWithReadyVApp.GetStatus==== %v", status)
 		if status == "UNRESOLVED" {
 			// wait until VApp will be ready
 			time.Sleep(time.Second * 1)
@@ -762,6 +760,7 @@ func TaskWithReadyVApp(vApp *govcd.VApp, task govcd.Task, message string) error 
 				log.Errorf(message, err)
 				return err
 			}
+			return nil
 		}
 	}
 }
