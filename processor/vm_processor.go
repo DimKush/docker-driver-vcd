@@ -136,7 +136,22 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	if vmExists != nil {
 		return nil, fmt.Errorf("VMProcessor.Create VM %s already exists in vApp: %s", p.cfg.VMachineName, p.cfg.VAppName)
 	}
-
+	// wait until vApp will be ready
+	for {
+		status, errStatus := vApp.GetStatus()
+		if errStatus != nil {
+			log.Errorf("VMProcessor.Create error: %v", errStatus)
+			return nil, errStatus
+		}
+		log.Debugf("VMProcessor.Create current status: %s", status)
+		if status == "UNRESOLVED" {
+			// wait until VApp will be ready
+			time.Sleep(time.Second * 1)
+			continue
+		} else {
+			break
+		}
+	}
 	// create a new VM in vApp
 	task, err := vApp.AddNewVM(
 		p.cfg.VMachineName,
