@@ -73,9 +73,8 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		return nil, err
 	}
 
-	err = taskNet.WaitTaskCompletion()
+	err = TaskWithReadyVApp(vApp, taskNet, "VMProcessor.checkVAppExistsAndCreateIfNot.WaitTaskCompletion error: %v")
 	if err != nil {
-		log.Errorf("VMProcessor.checkVAppExistsAndCreateIfNot.WaitTaskCompletion error: %v", err)
 		return nil, err
 	}
 
@@ -151,9 +150,8 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	// Wait for the creation to be completed
-	err = task.WaitTaskCompletion()
+	err = TaskWithReadyVApp(vApp, task, "VMProcessor.Create.AddNewVM.WaitTaskCompletion error: %v")
 	if err != nil {
-		log.Errorf("VMProcessor.Create.AddNewVM.WaitTaskCompletion error: %v", err)
 		return nil, err
 	}
 
@@ -247,10 +245,8 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 				return nil, err
 			}
 
-			err = task1To1Map.WaitTaskCompletion()
+			err = TaskWithReadyVApp(vApp, task1To1Map, "VMProcessor.Create.WaitTaskCompletion error: %v")
 			if err != nil {
-				log.Errorf("VMProcessor.Create.WaitTaskCompletion error: %v", err)
-
 				return nil, err
 			}
 		} else {
@@ -341,8 +337,7 @@ func (p *VMProcessor) Remove() error {
 			return errTask
 		}
 
-		if err = task.WaitTaskCompletion(); err != nil {
-			log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
+		if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Remove.WaitTaskCompletion error: %v"); err != nil {
 			return err
 		}
 	}
@@ -379,8 +374,7 @@ func (p *VMProcessor) Remove() error {
 		return err
 	}
 
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("VMProcessor.Remove.WaitTaskCompletion error: %v", err)
+	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Remove.WaitTaskCompletion error: %v"); err != nil {
 		return err
 	}
 
@@ -408,8 +402,7 @@ func (p *VMProcessor) Stop() error {
 		return err
 	}
 
-	if errWait := task.WaitTaskCompletion(); errWait != nil {
-		log.Errorf("VMProcessor.Stop.WaitTaskCompletion error: %v", errWait)
+	if errWait := TaskWithReadyVApp(vApp, task, "VMProcessor.Stop.WaitTaskCompletion error: %v"); errWait != nil {
 		return errWait
 	}
 
@@ -437,8 +430,7 @@ func (p *VMProcessor) Kill() error {
 		return err
 	}
 
-	if errWait := task.WaitTaskCompletion(); errWait != nil {
-		log.Errorf("VMProcessor.Kill.WaitTaskCompletion error: %v", errWait)
+	if errWait := TaskWithReadyVApp(vApp, task, "VMProcessor.Kill.WaitTaskCompletion error: %v"); errWait != nil {
 		return errWait
 	}
 
@@ -496,8 +488,7 @@ func (p *VMProcessor) Restart() error {
 		return err
 	}
 
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("VMProcessor.Restart.WaitTaskCompletion error: %v", err)
+	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Restart.WaitTaskCompletion error: %v"); err != nil {
 		return err
 	}
 
@@ -531,8 +522,7 @@ func (p *VMProcessor) Restart() error {
 		return err
 	}
 
-	if err = task.WaitTaskCompletion(); err != nil {
-		log.Errorf("VMProcessor.Restart.WaitTaskCompletion error: %v", err)
+	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Restart.WaitTaskCompletion error: %v"); err != nil {
 		return err
 	}
 
@@ -571,8 +561,7 @@ func (p *VMProcessor) Start() error {
 			return errOn
 		}
 
-		if errTask := task.WaitTaskCompletion(); errTask != nil {
-			log.Errorf("VMProcessor.Start.WaitTaskCompletion error: %v", errTask)
+		if errTask := TaskWithReadyVApp(vApp, task, "VMProcessor.Start.WaitTaskCompletion error: %v"); errTask != nil {
 			return errTask
 		}
 	}
@@ -726,8 +715,7 @@ func (p *VMProcessor) cleanState() error {
 				return err
 			}
 
-			if err = task.WaitTaskCompletion(); err != nil {
-				log.Errorf("VMProcessor.cleanState.WaitTaskCompletion error: %v", err)
+			if err = TaskWithReadyVApp(vApp, task, "VMProcessor.cleanState.WaitTaskCompletion error: %v"); err != nil {
 				return err
 			}
 			break
@@ -743,12 +731,35 @@ func (p *VMProcessor) cleanState() error {
 		return err
 	}
 
-	if err := task.WaitTaskCompletion(); err != nil {
-		log.Errorf("VMProcessor.WaitTaskCompletion error: %v", err)
+	if err := TaskWithReadyVApp(vApp, task, "VMProcessor.WaitTaskCompletion error: %v"); err != nil {
 		return err
 	}
 
 	log.Debugf("VMProcessor.cleanState %s...", p.cfg.VMachineName)
 
 	return nil
+}
+
+func TaskWithReadyVApp(vApp *govcd.VApp, task govcd.Task, message string) error {
+	// wait until vApp will be ready
+	for {
+		status, errStatus := vApp.GetStatus()
+		if errStatus != nil {
+			log.Errorf("VMProcessor.TaskWithReadyVApp.GetStatus error: %v", errStatus)
+			return errStatus
+		}
+		log.Debugf("VMProcessor.TaskWithReadyVApp.GetStatus current status: %s", status)
+		if status == "UNRESOLVED" {
+			// wait until VApp will be ready
+			time.Sleep(time.Second * 1)
+			continue
+		} else {
+			// try task
+			err := task.WaitTaskCompletion()
+			if err != nil {
+				log.Errorf(message, err)
+				return err
+			}
+		}
+	}
 }
