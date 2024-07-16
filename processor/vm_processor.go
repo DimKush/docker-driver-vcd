@@ -3,6 +3,7 @@ package processor
 import (
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +15,15 @@ import (
 	"github.com/vmware/go-vcloud-director/v2/govcd"
 	"github.com/vmware/go-vcloud-director/v2/types/v56"
 )
+
+var mapVAppReadyStatuses = map[string]interface{}{
+	"RESOLVED":                nil,
+	"DEPLOYED":                nil,
+	"POWERED_ON":              nil,
+	"MIXED":                   nil,
+	"VAPP_PARTIALLY_DEPLOYED": nil,
+	"POWERED_OFF":             nil,
+}
 
 // VMProcessor creates a single instance vApp with VM instead
 type VMProcessor struct {
@@ -73,27 +83,10 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 		return nil, err
 	}
 
-	err = TaskWithReadyVApp(vApp, taskNet, "VMProcessor.checkVAppExistsAndCreateIfNot.WaitTaskCompletion error: %v")
+	err = p.WaitReadyVAppAndRunTask(vApp, taskNet)
 	if err != nil {
+		log.Errorf("VMProcessor.checkVAppExistsAndCreateIfNot.WaitReadyVAppAndRunTask.AddRAWNetworkConfig error: %v", err)
 		return nil, err
-	}
-
-	// wait until vApp will be ready
-	for {
-		status, errStatus := vApp.GetStatus()
-		if errStatus != nil {
-			log.Errorf("VMProcessor.checkVAppExistsAndCreateIfNot.GetStatus error: %v", errStatus)
-			return nil, err
-		}
-
-		log.Debugf("VMProcessor.checkVAppExistsAndCreateIfNot.GetStatus current status: %s", status)
-		if status != "RESOLVED" {
-			// wait until VApp will be ready
-			time.Sleep(time.Second * 2)
-			continue
-		} else {
-			break
-		}
 	}
 
 	return vApp, nil
@@ -101,12 +94,6 @@ func (p *VMProcessor) checkVAppExistsAndCreateIfNot() (*govcd.VApp, error) {
 
 func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	log.Debugf("VMProcessor.Create running with config: %+v", p.cfg)
-
-	vApp, errVApp := p.checkVAppExistsAndCreateIfNot()
-	if errVApp != nil {
-		log.Errorf("VMProcessor.Create.checkVAppExistsAndCreateIfNot error: %v", errVApp)
-		return nil, errVApp
-	}
 
 	var err error
 
@@ -118,6 +105,12 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 			}
 		}
 	}()
+
+	vApp, errVApp := p.checkVAppExistsAndCreateIfNot()
+	if errVApp != nil {
+		log.Errorf("VMProcessor.Create.checkVAppExistsAndCreateIfNot error: %v", errVApp)
+		return nil, errVApp
+	}
 
 	// creates template vApp
 	log.Debugf("VMProcessor.Create creates new VM %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
@@ -136,22 +129,13 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	if vmExists != nil {
 		return nil, fmt.Errorf("VMProcessor.Create VM %s already exists in vApp: %s", p.cfg.VMachineName, p.cfg.VAppName)
 	}
+
 	// wait until vApp will be ready
-	for {
-		status, errStatus := vApp.GetStatus()
-		if errStatus != nil {
-			log.Errorf("VMProcessor.Create error: %v", errStatus)
-			return nil, errStatus
-		}
-		log.Debugf("VMProcessor.Create current status: %s", status)
-		if status == "UNRESOLVED" {
-			// wait until VApp will be ready
-			time.Sleep(time.Second * 1)
-			continue
-		} else {
-			break
-		}
+	if err := p.endlessWaitVCDAppReadyStatusBackoff(vApp); err != nil {
+		log.Errorf("VMProcessor.Create.endlessWaitVCDAppReadyStatusBackoff error: %v", err)
+		return nil, err
 	}
+
 	// create a new VM in vApp
 	task, err := vApp.AddNewVM(
 		p.cfg.VMachineName,
@@ -165,8 +149,9 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	// Wait for the creation to be completed
-	err = TaskWithReadyVApp(vApp, task, "VMProcessor.Create.AddNewVM.WaitTaskCompletion error: %v")
+	err = p.WaitReadyVAppAndRunTask(vApp, task)
 	if err != nil {
+		log.Errorf("VMProcessor.Create.WaitReadyVAppAndRunTask.AddNewVM error: %v", err)
 		return nil, err
 	}
 
@@ -260,8 +245,9 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 				return nil, err
 			}
 
-			err = TaskWithReadyVApp(vApp, task1To1Map, "VMProcessor.Create.WaitTaskCompletion error: %v")
+			err = p.WaitReadyVAppAndRunTask(vApp, task1To1Map)
 			if err != nil {
+				log.Errorf("VMProcessor.Create.WaitReadyVAppAndRunTask.Create1to1Mapping error: %v", err)
 				return nil, err
 			}
 		} else {
@@ -352,7 +338,8 @@ func (p *VMProcessor) Remove() error {
 			return errTask
 		}
 
-		if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Remove.WaitTaskCompletion error: %v"); err != nil {
+		if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+			log.Errorf("VMProcessor.Remove.WaitReadyVAppAndRunTask.VM.PowerOff error: %v", err)
 			return err
 		}
 	}
@@ -389,7 +376,8 @@ func (p *VMProcessor) Remove() error {
 		return err
 	}
 
-	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Remove.WaitTaskCompletion error: %v"); err != nil {
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.Remove.WaitReadyVAppAndRunTask.VM.DeleteAsync error: %v", err)
 		return err
 	}
 
@@ -417,8 +405,9 @@ func (p *VMProcessor) Stop() error {
 		return err
 	}
 
-	if errWait := TaskWithReadyVApp(vApp, task, "VMProcessor.Stop.WaitTaskCompletion error: %v"); errWait != nil {
-		return errWait
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.Stop.WaitReadyVAppAndRunTask.VM.PowerOff error: %v", err)
+		return err
 	}
 
 	return nil
@@ -445,8 +434,9 @@ func (p *VMProcessor) Kill() error {
 		return err
 	}
 
-	if errWait := TaskWithReadyVApp(vApp, task, "VMProcessor.Kill.WaitTaskCompletion error: %v"); errWait != nil {
-		return errWait
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.Stop.WaitReadyVAppAndRunTask.VM.PowerOff error: %v", err)
+		return err
 	}
 
 	// unmount disks
@@ -503,7 +493,8 @@ func (p *VMProcessor) Restart() error {
 		return err
 	}
 
-	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Restart.WaitTaskCompletion error: %v"); err != nil {
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.Restart.WaitReadyVAppAndRunTask.VM.PowerOff error: %v", err)
 		return err
 	}
 
@@ -537,7 +528,8 @@ func (p *VMProcessor) Restart() error {
 		return err
 	}
 
-	if err = TaskWithReadyVApp(vApp, task, "VMProcessor.Restart.WaitTaskCompletion error: %v"); err != nil {
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.Restart.WaitReadyVAppAndRunTask.VM.PowerOn error: %v", err)
 		return err
 	}
 
@@ -576,8 +568,9 @@ func (p *VMProcessor) Start() error {
 			return errOn
 		}
 
-		if errTask := TaskWithReadyVApp(vApp, task, "VMProcessor.Start.WaitTaskCompletion error: %v"); errTask != nil {
-			return errTask
+		if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+			log.Errorf("VMProcessor.Restart.WaitReadyVAppAndRunTask.VM.PowerOn error: %v", err)
+			return err
 		}
 	}
 
@@ -730,9 +723,11 @@ func (p *VMProcessor) cleanState() error {
 				return err
 			}
 
-			if err = TaskWithReadyVApp(vApp, task, "VMProcessor.cleanState.WaitTaskCompletion error: %v"); err != nil {
+			if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+				log.Errorf("VMProcessor.cleanState.WaitReadyVAppAndRunTask.VM.PowerOff error: %v", err)
 				return err
 			}
+
 			break
 		} else {
 			log.Debugf("VMProcessor.cleanState wait %s...", p.cfg.VMachineName)
@@ -746,7 +741,8 @@ func (p *VMProcessor) cleanState() error {
 		return err
 	}
 
-	if err := TaskWithReadyVApp(vApp, task, "VMProcessor.WaitTaskCompletion error: %v"); err != nil {
+	if err := p.WaitReadyVAppAndRunTask(vApp, task); err != nil {
+		log.Errorf("VMProcessor.cleanState.WaitReadyVAppAndRunTask.VM.DeleteAsync error: %v", err)
 		return err
 	}
 
@@ -755,27 +751,59 @@ func (p *VMProcessor) cleanState() error {
 	return nil
 }
 
-func TaskWithReadyVApp(vApp *govcd.VApp, task govcd.Task, message string) error {
-	// wait until vApp will be ready
-	for {
-		status, errStatus := vApp.GetStatus()
-		if errStatus != nil {
-			log.Errorf("VMProcessor.TaskWithReadyVApp.GetStatus error: %v", errStatus)
-			return errStatus
+// endlessWaitVCDAppReadyStatusBackoff - endless waiting for correct vApp status
+func (p *VMProcessor) endlessWaitVCDAppReadyStatusBackoff(vApp *govcd.VApp) error {
+	waitingFunc := func() error {
+		status, err := vApp.GetStatus()
+		if err != nil {
+			log.Errorf("VMProcessor.endlessWaitVAppReadyStatus.GetStatus error: %v", err)
+			return err
 		}
-		log.Debugf("VMProcessor.TaskWithReadyVApp.GetStatus current status: %s", status)
-		if status == "UNRESOLVED" {
-			// wait until VApp will be ready
-			time.Sleep(time.Second * 1)
-			continue
-		} else {
-			// try task
-			err := task.WaitTaskCompletion()
-			if err != nil {
-				log.Errorf(message, err)
-				return err
-			}
+
+		// found ready status
+		_, ok := mapVAppReadyStatuses[status]
+		if ok {
 			return nil
 		}
+		log.Debugf("VMProcessor.endlessWaitVAppReadyStatus.GetStatus current status: %s", status)
+
+		return fmt.Errorf("VMProcessor.endlessWaitVAppReadyStatus.GetStatus retry status: %s", status)
 	}
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 1 * time.Second
+	expBackoff.MaxInterval = 30 * time.Second
+
+	// endless exponential backoff
+	expBackoff.MaxElapsedTime = 0
+
+	err := backoff.Retry(waitingFunc, expBackoff)
+	if err != nil {
+		log.Errorf("VMProcessor.waitVappReadyBackoffAndDo error: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// WaitReadyVAppAndRunTask - wait until vApp will be ready and run task
+func (p *VMProcessor) WaitReadyVAppAndRunTask(vApp *govcd.VApp, task govcd.Task) error {
+	// wait until vApp will be ready
+	if err := p.endlessWaitVCDAppReadyStatusBackoff(vApp); err != nil {
+		log.Errorf("VMProcessor.TaskWithReadyVApp.endlessWaitVCDAppReadyStatusBackoff before task error: %v", err)
+		return err
+	}
+
+	if err := task.WaitTaskCompletion(); err != nil {
+		log.Errorf("VMProcessor.TaskWithReadyVApp.WaitTaskCompletion error: %v", err)
+		return err
+	}
+
+	// wait until vApp will be ready after task
+	if err := p.endlessWaitVCDAppReadyStatusBackoff(vApp); err != nil {
+		log.Errorf("VMProcessor.TaskWithReadyVApp.endlessWaitVCDAppReadyStatusBackoff after task error: %v", err)
+		return err
+	}
+
+	return nil
 }
