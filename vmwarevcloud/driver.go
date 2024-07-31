@@ -46,6 +46,7 @@ type Driver struct {
 	Rke2                    bool
 	VAppName                string
 	VMachineID              string
+	RootAuth                bool
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
@@ -60,6 +61,7 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 		Insecure:                defaultInsecure,
 		Rke2:                    defaultRke2,
 		AdapterType:             defaultAdapterType,
+		RootAuth:                defaultRootAuth,
 		IPAddressAllocationMode: defaultIPAddressAllocationMode,
 		BaseDriver: &drivers.BaseDriver{
 			SSHPort:     defaultSSHPort,
@@ -213,6 +215,11 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  "Vapp name where VM will be create",
 			Value:  defaultVAppName,
 		},
+		mcnflag.BoolFlag{
+			EnvVar: "VCD_ROOT_AUTH",
+			Name:   "vcd-root-auth",
+			Usage:  "Create VM with root password in tty",
+		},
 	}
 }
 
@@ -231,6 +238,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.InitData = flags.String("vcd-init-data")
 	d.AdapterType = flags.String("vcd-networkadaptertype")
 	d.IPAddressAllocationMode = flags.String("vcd-ipaddressallocationmode")
+	d.RootAuth = flags.Bool("vcd-root-auth")
 	d.SetSwarmConfigFromFlags(flags)
 
 	// Check for required Params
@@ -360,6 +368,7 @@ func (d *Driver) Create() error {
 		UserData:    d.UserData,
 		InitData:    d.InitData,
 		Rke2:        d.Rke2,
+		RootAuth:    d.RootAuth,
 	}
 
 	// creates Processor

@@ -29,6 +29,7 @@ type CustomScriptConfigVMProcessor struct {
 	UserData    string
 	InitData    string
 	Rke2        bool
+	RootAuth    bool
 }
 
 func NewVMProcessor(client *client.VCloudClient, cfg ConfigProcessor) Processor {
@@ -652,14 +653,14 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 
 	var (
 		section      types.GuestCustomizationSection
-		adminEnabled bool
 		scriptSh     string
 	)
 
 	section = vmScript
 
 	section.ComputerName = cfg.MachineName
-	section.AdminPasswordEnabled = &adminEnabled
+	
+	section.AdminPasswordEnabled = &cfg.RootAuth
 
 	scriptSh = cfg.InitData + "\n"
 	// append ssh user to script
