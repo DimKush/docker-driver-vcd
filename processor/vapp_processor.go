@@ -29,6 +29,7 @@ type CustomScriptConfigVAppProcessor struct {
 	UserData string
 	InitData string
 	Rke2     bool
+	RootAuth bool
 }
 
 func NewVAppProcessor(client *client.VCloudClient, cfg ConfigProcessor) Processor {
@@ -558,18 +559,18 @@ func (p *VAppProcessor) prepareCustomSectionForVM(
 
 	var (
 		section      types.GuestCustomizationSection
-		adminEnabled bool
 		scriptSh     string
 	)
 
 	section = vmScript
 
 	section.ComputerName = cfg.VAppName
-	section.AdminPasswordEnabled = &adminEnabled
+
+	section.AdminPasswordEnabled = &cfg.RootAuth
 
 	scriptSh = cfg.InitData + "\n"
 	// append ssh user to script
-	scriptSh += "\nuseradd -m -d /home/" + cfg.SSHUser + " -s /bin/bash " + cfg.SSHUser + "\nmkdir -p /home/" + cfg.SSHUser + "/.ssh\nchmod 700 /home/" + cfg.SSHUser + "/.ssh\ntouch /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nusermod -a -G sudo " + cfg.SSHUser + "\necho \"" + strings.TrimSpace(cfg.SSHKey) + "\" > /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + cfg.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + cfg.SSHUser + ":" + cfg.SSHUser + " -R /home/" + cfg.SSHUser + "\n"
+	scriptSh += "\nuseradd -m -d /home/" + cfg.SSHUser + " -s /bin/bash " + cfg.SSHUser + "\nmkdir -p /home/" + cfg.SSHUser + "/.ssh\nchmod 700 /home/" + cfg.SSHUser + "/.ssh\ntouch /home/" + cfg.SSHUser + "/.ssh/authorized_keys\nchmod 600 /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + strings.TrimSpace(cfg.SSHKey) + "\" > /home/" + cfg.SSHUser + "/.ssh/authorized_keys\necho \"" + cfg.SSHUser + "     ALL=(ALL) NOPASSWD:ALL\" >>  /etc/sudoers\nchown -R " + cfg.SSHUser + ". -R /home/" + cfg.SSHUser + "\n"
 
 	if cfg.Rke2 {
 		// if rke2

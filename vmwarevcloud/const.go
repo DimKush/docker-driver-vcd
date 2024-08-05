@@ -18,4 +18,5 @@ const (
 	defaultAdapterType             = ""
 	defaultIPAddressAllocationMode = types.IPAllocationModeDHCP
 	defaultVAppName                = "docker-machine-default"
+	defaultRootAuth                = false
 )
