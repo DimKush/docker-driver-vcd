@@ -21,6 +21,22 @@ var mapVAppReadyStatuses = map[string]interface{}{
 	"DEPLOYED":    nil,
 	"POWERED_ON":  nil,
 	"POWERED_OFF": nil,
+	"MIXED":       nil,
+}
+
+// The execution status of the task. One of:
+// queued (The task has been queued for execution)
+// preRunning (The task is awaiting preprocessing or administrative action.)
+// running (The task is running.)
+// success (The task completed with a status of success.)
+// error (The task encountered an error while running.)
+// canceled (The task was canceled by the owner or an administrator.)
+// aborted (The task was aborted by an administrative action.)
+var mapTasksFinishedStatuses = map[string]interface{}{
+	"success":  nil,
+	"error":    nil,
+	"canceled": nil,
+	"aborted":  nil,
 }
 
 // VMProcessor creates a single instance vApp with VM instead
@@ -129,7 +145,7 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	// wait until vApp will be ready
-	if err := p.endlessWaitVCDAppReadyStatusBackoff(vApp); err != nil {
+	if err := p.endlessWaitAllVAppTasksBaclkoff(); err != nil {
 		log.Errorf("VMProcessor.Create.endlessWaitVCDAppReadyStatusBackoff error: %v", err)
 		return nil, err
 	}
@@ -765,6 +781,43 @@ func (p *VMProcessor) cleanState() error {
 	}
 
 	log.Infof("VMProcessor.cleanState %s...", p.cfg.VMachineName)
+
+	return nil
+}
+
+// endlessWaitAllVAppTasksBaclkoff - endless waiting for correct vApp status
+func (p *VMProcessor) endlessWaitAllVAppTasksBaclkoff() error {
+	waitingFunc := func() error {
+		// get actual vApp state
+		vApp, err := p.vcdClient.VirtualDataCenter.GetVAppByName(p.cfg.VAppName, true)
+		if err != nil {
+			log.Errorf("VMProcessor.endlessWaitVAppReadyStatus.GetVAppByName error: %v", err)
+		}
+
+		// wait until ALL tasks will be finished
+		for _, task := range vApp.VApp.Tasks.Task {
+			_, ok := mapTasksFinishedStatuses[task.Status]
+			if !ok {
+				log.Infof("VMProcessor.endlessWaitVAppReadyStatus one of tasks have status: %s", task.Status)
+				return fmt.Errorf("VMProcessor.endlessWaitVAppReadyStatus one of tasks have status: %s", task.Status)
+			}
+		}
+
+		return nil
+	}
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 1 * time.Second
+	expBackoff.MaxInterval = 30 * time.Second
+
+	// endless exponential backoff
+	expBackoff.MaxElapsedTime = 0
+
+	err := backoff.Retry(waitingFunc, expBackoff)
+	if err != nil {
+		log.Errorf("VMProcessor.waitVappReadyBackoffAndDo error: %v", err)
+		return err
+	}
 
 	return nil
 }
