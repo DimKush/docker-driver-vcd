@@ -3,6 +3,7 @@ module github.com/DimKush/docker-driver-vcd
 go 1.17
 
 require (
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/machine v0.16.2
 	github.com/vmware/go-vcloud-director/v2 v2.14.0
 )
