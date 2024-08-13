@@ -152,7 +152,12 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 	}
 
 	log.Infof("VMProcessor.Create creates new VM #3 %s instead vApp %s", p.cfg.VMachineName, p.cfg.VAppName)
-	// create a new VM in vApp
+
+	if err := p.endlessWaitVCDAppReadyStatusBackoff(vApp); err != nil {
+		log.Errorf("VMProcessor.Create.endlessWaitVCDAppReadyStatusBackoff error: %v", err)
+		return nil, err
+	}
+
 	task, errVM := vApp.AddNewVM(
 		p.cfg.VMachineName,
 		p.vcdClient.VAppTemplate,
@@ -160,8 +165,32 @@ func (p *VMProcessor) Create(customCfg interface{}) (*govcd.VApp, error) {
 		true,
 	)
 	if errVM != nil {
-		log.Errorf("VMProcessor.Create.AddNewVM error: %v", errVM)
-		return nil, errVM
+		log.Errorf("VMProcessor.Create.AddNewVM error => go to loop: %v", p.cfg.VMachineName)
+		waitingFunc := func() error {
+			task, errVM = vApp.AddNewVM(
+				p.cfg.VMachineName,
+				p.vcdClient.VAppTemplate,
+				p.vcdClient.VAppTemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection,
+				true,
+			)
+			if errVM != nil {
+				return fmt.Errorf("VMProcessor.Create.AddNewVM error => retry create VM: %v", p.cfg.VMachineName)
+			}
+			return nil
+		}
+
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.InitialInterval = 1 * time.Second
+		expBackoff.MaxInterval = 30 * time.Second
+
+		// endless exponential backoff
+		expBackoff.MaxElapsedTime = 0
+
+		err := backoff.Retry(waitingFunc, expBackoff)
+		if err != nil {
+			log.Errorf("VMProcessor.Create.AddNewVM error => retry create VM with interval: %v", errVM)
+			return nil, err
+		}
 	}
 
 	if errTask := task.WaitTaskCompletion(); errTask != nil {
@@ -679,14 +708,14 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 	log.Infof("VMProcessor.prepareCustomSectionForVM running with custom config: %+v", cfg)
 
 	var (
-		section      types.GuestCustomizationSection
-		scriptSh     string
+		section  types.GuestCustomizationSection
+		scriptSh string
 	)
 
 	section = vmScript
 
 	section.ComputerName = cfg.MachineName
-	
+
 	section.AdminPasswordEnabled = &cfg.RootAuth
 
 	scriptSh = cfg.InitData + "\n"
@@ -794,7 +823,9 @@ func (p *VMProcessor) endlessWaitAllVAppTasksBaclkoff() error {
 		if err != nil {
 			log.Errorf("VMProcessor.endlessWaitVAppReadyStatus.GetVAppByName error: %v", err)
 		}
-
+		if vApp.VApp.Tasks == nil {
+			return nil
+		}
 		// wait until ALL tasks will be finished
 		for _, task := range vApp.VApp.Tasks.Task {
 			_, ok := mapTasksFinishedStatuses[task.Status]
