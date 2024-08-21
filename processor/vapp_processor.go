@@ -595,7 +595,7 @@ func (p *VAppProcessor) prepareCustomSectionForVM(
 		scriptSh += cfg.UserData
 	}
 
-	section.CustomizationScript = section.CustomizationScript + scriptSh
+	section.CustomizationScript = section.CustomizationScript + "\n" + scriptSh
 
 	return section, nil
 }
