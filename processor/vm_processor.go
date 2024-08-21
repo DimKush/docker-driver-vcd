@@ -745,7 +745,7 @@ func (p *VMProcessor) prepareCustomSectionForVM(
 		scriptSh += cfg.UserData
 	}
 
-	section.CustomizationScript = scriptSh
+	section.CustomizationScript = section.CustomizationScript + scriptSh
 
 	return section, nil
 }

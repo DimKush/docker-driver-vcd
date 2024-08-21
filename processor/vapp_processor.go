@@ -558,8 +558,8 @@ func (p *VAppProcessor) prepareCustomSectionForVM(
 	log.Debugf("VAppProcessor.prepareCustomSectionForVM running with custom config: %+v", cfg)
 
 	var (
-		section      types.GuestCustomizationSection
-		scriptSh     string
+		section  types.GuestCustomizationSection
+		scriptSh string
 	)
 
 	section = vmScript
@@ -595,7 +595,7 @@ func (p *VAppProcessor) prepareCustomSectionForVM(
 		scriptSh += cfg.UserData
 	}
 
-	section.CustomizationScript = scriptSh
+	section.CustomizationScript = section.CustomizationScript + scriptSh
 
 	return section, nil
 }
